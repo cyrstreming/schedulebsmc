@@ -15,6 +15,7 @@ const state = {
   type: "practice",
   group: "",
   subgroup: "all",
+  teacher: "all",
   year: 0,
   month: 0,
   selected: ""
@@ -23,12 +24,17 @@ const state = {
 /** Уже отсортированные занятия: группа -> массив записей. */
 const theoryByGroup = new Map();
 const practiceByGroup = new Map();
+const theoryByTeacher = new Map();
+const practiceByTeacher = new Map();
 let groups = [];
 
 const loader = document.querySelector("#loader");
 const errorBox = document.querySelector("#error");
 const appContent = document.querySelector("#appContent");
+const groupField = document.querySelector("#groupField");
 const groupSelect = document.querySelector("#groupSelect");
+const teacherSelect = document.querySelector("#teacherSelect");
+const teacherNow = document.querySelector("#teacherNow");
 const subgroupField = document.querySelector("#subgroupField");
 const subgroupSelect = document.querySelector("#subgroupSelect");
 const tabPractice = document.querySelector("#tabPractice");
@@ -46,14 +52,7 @@ const emptyBox = document.querySelector("#empty");
 const feedbackButton = document.querySelector("#feedbackButton");
 const notice = document.querySelector("#notice");
 const noticeButton = document.querySelector("#noticeButton");
-const overlay = document.querySelector("#overlay");
-const closeModalButton = document.querySelector("#closeModal");
-const feedbackForm = document.querySelector("#feedbackForm");
-const feedbackText = document.querySelector("#feedbackText");
-const sendFeedback = document.querySelector("#sendFeedback");
-const toast = document.querySelector("#toast");
-
-let toastTimer = 0;
+const CONTACT_URL = "https://t.me/cyrstreming";
 
 function formatISO(date) {
   const year = date.getFullYear();
@@ -162,7 +161,8 @@ function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       group: state.group,
       type: state.type,
-      subgroup: state.subgroup
+      subgroup: state.subgroup,
+      teacher: state.teacher
     }));
   } catch (error) {
     /* В приватном режиме браузер может запретить localStorage. */
@@ -176,19 +176,42 @@ function defaultGroup() {
 
 /**
  * Фильтр списка.
- * Группа ограничивает оба типа. Подгруппа применяется только к практике:
- * на вкладке «Теория» селект скрыт, и показываются все пары группы,
- * в том числе разделённые по подгруппам.
- * «Все» оставляет и записи без подгруппы.
+ * Если преподаватель не выбран, список ограничен группой.
+ * Если выбран, показываются его занятия во всех группах: так преподаватель
+ * видит свой день, а студент — у какой группы он сейчас.
+ * Подгруппа применяется только к практике. «Все» оставляет записи без подгруппы.
  */
 function filteredLessons() {
-  const source = (state.type === "practice" ? practiceByGroup : theoryByGroup).get(state.group) || [];
+  const byTeacher = state.teacher !== "all";
+  const source = byTeacher
+    ? (state.type === "practice" ? practiceByTeacher : theoryByTeacher).get(state.teacher) || []
+    : (state.type === "practice" ? practiceByGroup : theoryByGroup).get(state.group) || [];
   if (state.type !== "practice" || state.subgroup === "all") return source;
   return source.filter((lesson) => subgroupNumber(lesson.subgroup) === state.subgroup);
 }
 
+function indexByTeacher(byGroup) {
+  const byTeacher = new Map();
+  for (const lessons of byGroup.values()) {
+    for (const lesson of lessons) {
+      const name = lesson.teacher == null ? "" : String(lesson.teacher).trim();
+      if (!name) continue;
+      let bucket = byTeacher.get(name);
+      if (!bucket) {
+        bucket = [];
+        byTeacher.set(name, bucket);
+      }
+      bucket.push(lesson);
+    }
+  }
+  for (const bucket of byTeacher.values()) bucket.sort(compareLessons);
+  return byTeacher;
+}
+
 function syncSubgroupOptions() {
-  const lessons = practiceByGroup.get(state.group) || [];
+  const lessons = state.teacher === "all"
+    ? practiceByGroup.get(state.group) || []
+    : practiceByTeacher.get(state.teacher) || [];
   const numbers = new Set();
   for (const lesson of lessons) {
     const number = subgroupNumber(lesson.subgroup);
@@ -204,10 +227,64 @@ function syncSubgroupOptions() {
 
 function syncTypeUI() {
   const practice = state.type === "practice";
+  const byTeacher = state.teacher !== "all";
   subgroupField.classList.toggle("is-hidden", !practice);
   subgroupSelect.disabled = !practice;
+  groupSelect.disabled = byTeacher;
+  groupField.classList.toggle("is-disabled", byTeacher);
   tabPractice.setAttribute("aria-selected", practice ? "true" : "false");
   tabTheory.setAttribute("aria-selected", practice ? "false" : "true");
+}
+
+function lessonMinutes(lesson) {
+  if (!lesson.time) return null;
+  const match = String(lesson.time).match(/(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  return [Number(match[1]) * 60 + Number(match[2]), Number(match[3]) * 60 + Number(match[4])];
+}
+
+function describeByGroup(lessons) {
+  const byGroup = new Map();
+  for (const lesson of lessons) {
+    let subjects = byGroup.get(lesson.group);
+    if (!subjects) {
+      subjects = new Set();
+      byGroup.set(lesson.group, subjects);
+    }
+    const subject = lesson.subject == null ? "" : String(lesson.subject).trim();
+    if (subject) subjects.add(subject);
+  }
+  return [...byGroup.entries()].map(([group, subjects]) => {
+    const list = [...subjects];
+    return list.length ? `${group}: ${list.join(", ")}` : group;
+  }).join("; ");
+}
+
+/** Для выбранного преподавателя показывает, где он занят сегодня. */
+function renderTeacherNow() {
+  if (state.teacher === "all") {
+    teacherNow.hidden = true;
+    teacherNow.textContent = "";
+    return;
+  }
+  const today = formatISO(new Date());
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const todayLessons = filteredLessons().filter((lesson) => lesson.date === today);
+  const current = todayLessons.filter((lesson) => {
+    const span = lessonMinutes(lesson);
+    return span && minutes >= span[0] && minutes <= span[1];
+  });
+  teacherNow.hidden = false;
+  if (current.length) {
+    teacherNow.textContent = `Сейчас ${describeByGroup(current)}`;
+    return;
+  }
+  if (todayLessons.length) {
+    teacherNow.textContent = `Сегодня: ${describeByGroup(todayLessons)}`;
+    return;
+  }
+  teacherNow.textContent = "Сегодня у этого преподавателя занятий нет";
 }
 
 function setToday() {
@@ -272,6 +349,21 @@ function renderCalendar() {
   calendarGrid.replaceChildren(fragment);
 }
 
+function roomRow(lesson) {
+  const row = document.createElement("div");
+  const term = document.createElement("dt");
+  term.textContent = "Аудитория";
+  const description = document.createElement("dd");
+  const room = document.createElement("span");
+  room.textContent = displayText(lesson.room, "Не указана");
+  const note = document.createElement("span");
+  note.className = "room-note";
+  note.textContent = "Кабинет может не соответствовать расписанию";
+  description.append(room, note);
+  row.append(term, description);
+  return row;
+}
+
 function detailRow(label, value) {
   const row = document.createElement("div");
   const term = document.createElement("dt");
@@ -324,6 +416,7 @@ function createLessonCard(lesson, index) {
 
   const chips = document.createElement("span");
   chips.className = "badges";
+  if (state.teacher !== "all" && lesson.group) chips.append(badge(lesson.group));
   const subgroup = subgroupNumber(lesson.subgroup);
   if (subgroup) chips.append(badge(`${subgroup} п/гр`));
   if (lesson.shift) {
@@ -358,9 +451,7 @@ function createLessonCard(lesson, index) {
   const details = document.createElement("dl");
   details.className = "details";
   details.append(detailRow("Преподаватель", displayText(lesson.teacher, "Не указан")));
-  if (state.type === "theory") {
-    details.append(detailRow("Аудитория", displayText(lesson.room, "Не указана")));
-  }
+  if (state.type === "theory") details.append(roomRow(lesson));
   inner.append(details);
   panel.append(inner);
   article.append(head, panel);
@@ -443,6 +534,7 @@ function renderDetails() {
 
 function render() {
   syncTypeUI();
+  renderTeacherNow();
   renderCalendar();
   renderDetails();
 }
@@ -456,72 +548,28 @@ function selectDate(iso, shouldScroll) {
   if (shouldScroll) dayTitle.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add("is-visible");
-  clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2600);
-}
-
 function closeNotice() {
   notice.hidden = true;
-  if (overlay.hidden) document.body.classList.remove("modal-open");
-}
-
-function openModal() {
-  overlay.hidden = false;
-  document.body.classList.add("modal-open");
-  feedbackText.focus();
-}
-
-function closeModal() {
-  overlay.hidden = true;
   document.body.classList.remove("modal-open");
 }
 
-/**
- * Telegram.WebApp.sendData доставляет строку боту и закрывает Mini App.
- * Метод доступен только если приложение открыто reply-кнопкой клавиатуры
- * (KeyboardButton.web_app), не из меню и не из inline-кнопки.
- * Бот получает message.web_app_data.data — JSON вида {"type":"feedback","text":"..."}.
- * Лимит Telegram — 4096 байт. В обычном браузере sendData не вызывается.
- *
- *   KeyboardButton(text="Расписание", web_app=WebAppInfo(url="https://<user>.github.io/<repo>/"))
- *
- *   @router.message(F.web_app_data)
- *   async def feedback(message: Message):
- *       payload = json.loads(message.web_app_data.data)
- */
-function submitFeedback() {
-  const text = feedbackText.value.trim();
-  if (!text) return;
-  const payload = JSON.stringify({ type: "feedback", text });
-  if (new TextEncoder().encode(payload).length > 4096) {
-    showToast("Текст слишком длинный для Telegram (лимит 4096 байт)");
-    return;
-  }
-  const canSend = Boolean(tg && tg.platform && tg.platform !== "unknown" && typeof tg.sendData === "function");
-  if (!canSend) {
-    closeModal();
-    showToast("Отзыв можно отправить только из Telegram");
-    return;
-  }
-  feedbackText.value = "";
-  sendFeedback.disabled = true;
-  closeModal();
-  showToast("Спасибо! Отзыв отправлен");
-  window.setTimeout(() => {
-    try {
-      tg.sendData(payload);
-    } catch (error) {
-      showToast("Не удалось отправить. Откройте приложение кнопкой бота.");
-    }
-  }, 400);
+/** В Telegram открывает чат внутри приложения. В обычном браузере срабатывает ссылка. */
+function openFeedbackChat(event) {
+  if (!tg || typeof tg.openTelegramLink !== "function") return;
+  event.preventDefault();
+  tg.openTelegramLink(CONTACT_URL);
 }
 
 function bindEvents() {
   groupSelect.addEventListener("change", () => {
     state.group = groupSelect.value;
+    syncSubgroupOptions();
+    saveState();
+    render();
+  });
+
+  teacherSelect.addEventListener("change", () => {
+    state.teacher = teacherSelect.value;
     syncSubgroupOptions();
     saveState();
     render();
@@ -567,21 +615,7 @@ function bindEvents() {
     selectDate(button.dataset.date, true);
   });
 
-  feedbackButton.addEventListener("click", openModal);
-  closeModalButton.addEventListener("click", closeModal);
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) closeModal();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !overlay.hidden) closeModal();
-  });
-  feedbackText.addEventListener("input", () => {
-    sendFeedback.disabled = feedbackText.value.trim() === "";
-  });
-  feedbackForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    submitFeedback();
-  });
+  feedbackButton.addEventListener("click", openFeedbackChat);
 }
 
 function showFatal(message) {
@@ -623,6 +657,8 @@ async function init() {
     ]);
     for (const [group, lessons] of indexByGroup(theory)) theoryByGroup.set(group, lessons);
     for (const [group, lessons] of indexByGroup(practice)) practiceByGroup.set(group, lessons);
+    for (const [name, lessons] of indexByTeacher(theoryByGroup)) theoryByTeacher.set(name, lessons);
+    for (const [name, lessons] of indexByTeacher(practiceByGroup)) practiceByTeacher.set(name, lessons);
     groups = [...new Set([...theoryByGroup.keys(), ...practiceByGroup.keys()])].sort((a, b) => a.localeCompare(b, "ru", { numeric: true }));
     if (!groups.length) {
       showFatal("В файлах расписания нет групп.");
@@ -630,13 +666,17 @@ async function init() {
     }
 
     for (const group of groups) groupSelect.add(new Option(group, group));
+    const teachers = [...new Set([...theoryByTeacher.keys(), ...practiceByTeacher.keys()])].sort((a, b) => a.localeCompare(b, "ru"));
+    for (const name of teachers) teacherSelect.add(new Option(name, name));
     const prefs = loadPrefs();
     if (prefs.type === "practice" || prefs.type === "theory") state.type = prefs.type;
     if (typeof prefs.subgroup === "string" && (prefs.subgroup === "all" || /^\d+$/.test(prefs.subgroup))) {
       state.subgroup = prefs.subgroup;
     }
     state.group = groups.includes(prefs.group) ? prefs.group : defaultGroup();
+    state.teacher = teachers.includes(prefs.teacher) ? prefs.teacher : "all";
     groupSelect.value = state.group;
+    teacherSelect.value = state.teacher;
     syncSubgroupOptions();
     saveState();
     setToday();
