@@ -927,7 +927,11 @@ body.theme-dark .badge-note {
   flex-direction: column;
   gap: 6px;
   margin-top: 10px;
+  max-height: min(46vh, 420px);
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .group-option {
@@ -1229,7 +1233,6 @@ html.no-entry-warn #notice { display: none !important; }
   padding: 16px;
   background: var(--overlay);
   overscroll-behavior: none;
-  touch-action: none;
   opacity: 0;
   transition: opacity 0.28s ease;
 }

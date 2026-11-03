@@ -2226,6 +2226,17 @@ function rememberSheetTouch(event) {
   sheetTouchY = event.touches[0] ? event.touches[0].clientY : 0;
 }
 
+function sheetScroller(target, modal) {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== modal.parentElement) {
+    const style = getComputedStyle(node);
+    const scrollable = /(auto|scroll)/.test(`${style.overflowY} ${style.overflow}`);
+    if (scrollable && node.scrollHeight > node.clientHeight + 1) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 function holdSheetScroll(event) {
   if (!document.body.classList.contains("modal-open")) return;
   const overlay = event.target.closest(".overlay");
@@ -2234,12 +2245,13 @@ function holdSheetScroll(event) {
   const y = event.touches[0] ? event.touches[0].clientY : sheetTouchY;
   const dy = y - sheetTouchY;
   sheetTouchY = y;
-  if (!modal || !modal.contains(event.target)) {
+  const scroller = modal && modal.contains(event.target) ? sheetScroller(event.target, modal) : null;
+  if (!scroller) {
     event.preventDefault();
     return;
   }
-  const canUp = modal.scrollTop > 0;
-  const canDown = modal.scrollTop + modal.clientHeight < modal.scrollHeight - 1;
+  const canUp = scroller.scrollTop > 0;
+  const canDown = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
   if ((dy > 0 && !canUp) || (dy < 0 && !canDown)) event.preventDefault();
 }
 
