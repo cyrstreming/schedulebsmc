@@ -2062,17 +2062,36 @@ function isTextField(element) {
   return !["button", "checkbox", "radio", "color", "file", "range", "submit", "reset"].includes(type);
 }
 
+/* Пока клавиатура закрывается, телефон иногда сразу возвращает фокус в поле. */
+let keyboardGuard = false;
+
 /* Свободное место убирает клавиатуру. Кнопки и другие поля не трогаем, чтобы нажатие сработало. */
 function dismissKeyboard(event) {
-  const active = document.activeElement;
-  if (!isTextField(active)) return;
   const target = event.target;
   if (!(target instanceof Element)) return;
-  if (isTextField(target.closest("input, textarea"))) return;
-  const label = target.closest("label");
-  if (label && label.contains(active)) return;
+  const hit = target.closest("input, textarea, label");
+  if (hit) {
+    const field = hit.matches("input, textarea") ? hit : hit.querySelector("input, textarea");
+    if (isTextField(field)) {
+      keyboardGuard = false;
+      return;
+    }
+  }
   if (target.closest("button, a, select, [role='button']")) return;
+  const active = document.activeElement;
+  if (!isTextField(active)) return;
+  event.preventDefault();
+  keyboardGuard = true;
   active.blur();
+  window.setTimeout(() => { keyboardGuard = false; }, 500);
+}
+
+function guardKeyboardFocus(event) {
+  if (!keyboardGuard || !isTextField(event.target)) return;
+  const field = event.target;
+  window.setTimeout(() => {
+    if (keyboardGuard && document.activeElement === field) field.blur();
+  }, 0);
 }
 
 function closeOnBackdrop(overlay, close) {
@@ -2081,9 +2100,45 @@ function closeOnBackdrop(overlay, close) {
   });
 }
 
+let scrollLocked = false;
+let lockedScroll = 0;
+
 function syncModal() {
   const open = !notice.hidden || !groupPicker.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   document.body.classList.toggle("modal-open", open);
+  if (open && !scrollLocked) {
+    lockedScroll = window.scrollY;
+    scrollLocked = true;
+    document.body.style.top = `-${lockedScroll}px`;
+  } else if (!open && scrollLocked) {
+    scrollLocked = false;
+    document.body.style.top = "";
+    window.scrollTo(0, lockedScroll);
+  }
+}
+
+/* Жест по окну не прокручивает расписание под ним. */
+let sheetTouchY = 0;
+
+function rememberSheetTouch(event) {
+  sheetTouchY = event.touches[0] ? event.touches[0].clientY : 0;
+}
+
+function holdSheetScroll(event) {
+  if (!document.body.classList.contains("modal-open")) return;
+  const overlay = event.target.closest(".overlay");
+  if (!overlay || overlay.hidden) return;
+  const modal = overlay.querySelector(".modal");
+  const y = event.touches[0] ? event.touches[0].clientY : sheetTouchY;
+  const dy = y - sheetTouchY;
+  sheetTouchY = y;
+  if (!modal || !modal.contains(event.target)) {
+    event.preventDefault();
+    return;
+  }
+  const canUp = modal.scrollTop > 0;
+  const canDown = modal.scrollTop + modal.clientHeight < modal.scrollHeight - 1;
+  if ((dy > 0 && !canUp) || (dy < 0 && !canDown)) event.preventDefault();
 }
 
 function closeNotice() {
@@ -2515,6 +2570,10 @@ function bindEvents() {
   closeOnBackdrop(resetDayDialog, closeResetDay);
   closeOnBackdrop(conflictDialog, closeConflict);
   document.addEventListener("pointerdown", dismissKeyboard);
+  document.addEventListener("touchstart", dismissKeyboard, { passive: false });
+  document.addEventListener("touchstart", rememberSheetTouch, { passive: true });
+  document.addEventListener("touchmove", holdSheetScroll, { passive: false });
+  document.addEventListener("focusin", guardKeyboardFocus);
 
   addOther.addEventListener("click", () => {
     addCustomSubject = !addCustomSubject;

@@ -1216,10 +1216,16 @@ html.no-entry-warn #notice { display: none !important; }
   justify-content: center;
   padding: 16px;
   background: var(--overlay);
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .modal {
   width: min(480px, 100%);
+  max-height: min(88vh, 720px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -1291,7 +1297,13 @@ textarea::placeholder { color: var(--faint); }
   transform: translateX(-50%) translateY(0);
 }
 
-body.modal-open { overflow: hidden; }
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
 
 @media (min-width: 640px) {
   .overlay { align-items: center; }
@@ -1316,8 +1328,8 @@ body.modal-open { overflow: hidden; }
 
 html.look-standard body {
   background:
-    radial-gradient(120% 320px at 0% -40px, color-mix(in srgb, var(--c-theory) 26%, transparent), transparent 70%),
-    radial-gradient(90% 280px at 100% 0, color-mix(in srgb, var(--c-practice) 18%, transparent), transparent 68%),
+    radial-gradient(120% 320px at 0% calc(-40px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, var(--c-theory) 26%, transparent), transparent 70%),
+    radial-gradient(90% 280px at 100% calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, var(--c-practice) 18%, transparent), transparent 68%),
     var(--bg);
 }
 
