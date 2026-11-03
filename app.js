@@ -1780,10 +1780,13 @@ function roomRow(lesson) {
   const description = document.createElement("dd");
   const room = document.createElement("span");
   room.textContent = displayText(lesson.room, "Не указана");
-  const note = document.createElement("span");
-  note.className = "room-note";
-  note.textContent = "Кабинет может не соответствовать расписанию";
-  description.append(room, note);
+  description.append(room);
+  if (!lesson.added) {
+    const note = document.createElement("span");
+    note.className = "room-note";
+    note.textContent = "Кабинет может не соответствовать расписанию";
+    description.append(note);
+  }
   row.append(term, description);
   return row;
 }
