@@ -682,8 +682,43 @@ function saveState() {
  * Подгруппа скрывает чужие подгруппы. Занятие без подгруппы остаётся: оно общее.
  */
 function addedForView() {
-  if (state.teacher !== "all") return addedLessons.filter((lesson) => lesson.teacher === state.teacher);
-  return addedLessons.filter((lesson) => lesson.group === state.group && !lesson.teacher);
+  if (state.teacher !== "all") return addedLessons.filter((lesson) => !lesson.group && lesson.teacher === state.teacher);
+  return addedLessons.filter((lesson) => lesson.group === state.group);
+}
+
+/* Преподаватель предмета в расписании этой группы. При нескольких — тот, у кого таких занятий больше. */
+function teacherForSubject(subject, kind, subgroup, group) {
+  const wanted = displayText(subject, "");
+  if (!wanted) return "";
+  const lists = group
+    ? [...(theoryByGroup.get(group) || []), ...(practiceByGroup.get(group) || [])]
+    : sourceLessons().filter((lesson) => !lesson.added);
+  let matches = [];
+  for (const lesson of lists) {
+    if (lesson.added) continue;
+    if (displayText(lesson.subject, "") !== wanted) continue;
+    if (!displayText(lesson.teacher, "")) continue;
+    matches.push(lesson);
+  }
+  if (kind === "practice") {
+    const practice = matches.filter((lesson) => lesson.kind === "practice");
+    if (practice.length) matches = practice;
+  } else if (kind) {
+    const exact = matches.filter((lesson) => lesson.kind === kind);
+    const theory = exact.length ? exact : matches.filter((lesson) => lesson.kind !== "practice");
+    if (theory.length) matches = theory;
+  }
+  if (subgroup) {
+    const same = matches.filter((lesson) => subgroupNumber(lesson.subgroup) === subgroup);
+    if (same.length) matches = same;
+  }
+  const counts = new Map();
+  for (const lesson of matches) {
+    const name = displayText(lesson.teacher, "");
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  if (!counts.size) return "";
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ru"))[0][0];
 }
 
 function sourceLessons() {
@@ -1690,22 +1725,25 @@ function draftAddedLesson() {
     time = table[number] || "";
   }
   const subject = (addCustomSubject ? addSubjectText.value : addSubject.value).trim();
+  const subgroup = kind === "split"
+    ? (addSubgroup.value || "1")
+    : practice
+      ? (state.subgroup === "1" || state.subgroup === "2" || state.subgroup === "3" ? state.subgroup : "1")
+      : "";
+  const group = state.teacher === "all" ? state.group : "";
+  const teacher = teacherForSubject(subject, kind, subgroup, group || state.group) || (state.teacher !== "all" ? state.teacher : "");
   return {
     id: `added-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     added: true,
     date: state.selected,
-    group: state.teacher === "all" ? state.group : "",
-    teacher: state.teacher !== "all" ? state.teacher : "",
+    group,
+    teacher,
     kind,
     subject,
     time,
     pair: practice ? "" : number,
     shift: practice && number ? `${number} смена` : "",
-    subgroup: kind === "split"
-      ? (addSubgroup.value || "1")
-      : practice
-        ? (state.subgroup === "1" || state.subgroup === "2" || state.subgroup === "3" ? state.subgroup : "1")
-        : "",
+    subgroup,
     room: addRoom.value.trim()
   };
 }
@@ -1926,7 +1964,8 @@ function createLessonCard(lesson, index) {
   inner.className = "lesson-panel-inner";
   const details = document.createElement("dl");
   details.className = "details";
-  details.append(detailRow("Преподаватель", displayText(lesson.teacher, "Не указан")));
+  const teacherName = displayText(lesson.teacher, "") || (lesson.added ? teacherForSubject(lesson.subject, lesson.kind, subgroupNumber(lesson.subgroup), lesson.group || state.group) : "");
+  details.append(detailRow("Преподаватель", displayText(teacherName, "Не указан")));
   if (lesson.kind === "theory" || lesson.kind === "split" || displayText(lesson.room, "")) {
     details.append(roomRow(lesson));
   }
