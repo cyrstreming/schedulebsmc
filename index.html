@@ -4,27 +4,45 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f6fb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Расписание">
   <title>Расписание занятий</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <!--
     Статическая страница для GitHub Pages.
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=27">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
     (function () {
+      var prefs = {};
+      try { prefs = JSON.parse(localStorage.getItem("college-schedule-filters")) || {}; } catch (error) { prefs = {}; }
+      var theme = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : "system";
       var dark = false;
+      var tg = window.Telegram && window.Telegram.WebApp;
+      if (tg && ((tg.initData && tg.initData.length) || (tg.platform && tg.platform !== "unknown"))) {
+        document.documentElement.classList.add("in-telegram");
+      }
       try {
-        var tg = window.Telegram && window.Telegram.WebApp;
-        dark = tg && tg.colorScheme
+        var systemDark = tg && tg.colorScheme
           ? tg.colorScheme === "dark"
           : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        dark = theme === "dark" || (theme !== "light" && systemDark);
       } catch (error) {
-        dark = false;
+        dark = theme === "dark";
       }
-      document.documentElement.classList.add(dark ? "theme-dark" : "theme-light");
+      var root = document.documentElement;
+      root.classList.add(dark ? "theme-dark" : "theme-light");
+      root.classList.add(prefs.look === "simple" ? "look-simple" : "look-standard");
+      var colors = prefs.colors || {};
+      if (colors.practice) root.style.setProperty("--c-practice", colors.practice);
+      if (colors.theory) root.style.setProperty("--c-theory", colors.theory);
+      if (colors.split) root.style.setProperty("--c-split", colors.split);
     })();
   </script>
 </head>
@@ -47,22 +65,30 @@
             <path d="M8 3.5v4M16 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
           </svg>
         </div>
-        <div>
-          <h1>Расписание</h1>
+        <div class="hero-copy">
+          <div class="hero-title">
+            <h1>Расписание</h1>
+            <button type="button" class="btn-install" id="installButton">Скачать приложение</button>
+          </div>
           <p>Занятия колледжа</p>
         </div>
+        <button type="button" class="btn-gear" id="settingsButton" aria-label="Настройки">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="currentColor" fill-rule="evenodd" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"></path>
+          </svg>
+        </button>
       </header>
 
       <section class="filters" aria-label="Фильтры">
-        <div class="filter-pair">
-          <label class="field" id="groupField">
+        <div class="filter-pair" hidden>
+          <label class="field" id="groupField" hidden>
             <span>Группа</span>
             <div class="select-wrap">
               <select id="groupSelect"></select>
             </div>
           </label>
 
-          <label class="field">
+          <label class="field" id="teacherField" hidden>
             <span>Преподаватель</span>
             <div class="select-wrap">
               <select id="teacherSelect">
@@ -84,18 +110,31 @@
       </section>
 
       <section class="results" aria-label="Занятия выбранного дня">
-        <p id="countdown" class="countdown" hidden></p>
+        <div id="countdown" class="countdown" hidden>
+          <p id="countdownText"></p>
+          <div id="timeTrack" class="time-track" hidden><span id="timeFill" class="time-fill"></span></div>
+        </div>
         <div class="legend">
           <span><i class="swatch swatch-practice"></i>Практика</span>
           <span><i class="swatch swatch-theory"></i>Теория</span>
           <span><i class="swatch swatch-split"></i>Теория с подгруппами</span>
         </div>
         <div class="day-head">
-          <h2 id="dayTitle"></h2>
+          <div>
+            <h2 id="dayTitle"></h2>
+            <p id="weekLabel" class="week-label"></p>
+          </div>
           <span id="dayCount"></span>
         </div>
-        <div id="lessons" class="lessons"></div>
-        <p id="empty" class="empty" hidden>На этот день занятий нет 🎉</p>
+        <div id="dayBody">
+          <div id="lessons" class="lessons"></div>
+          <p id="empty" class="empty" hidden>На этот день занятий нет 🎉</p>
+        </div>
+        <div class="day-tools">
+          <button type="button" class="btn" id="addButton">Добавить занятие</button>
+          <button type="button" class="btn" id="deletedButton" hidden>Удалённые</button>
+          <button type="button" class="btn btn-quiet" id="resetDayButton" hidden>Отменить изменения</button>
+        </div>
       </section>
 
       <section class="calendar" aria-label="Календарь">
@@ -128,6 +167,7 @@
       </section>
 
       <a class="btn btn-feedback" id="feedbackButton" href="https://t.me/cyrstreming">Оставить отзыв / Ошибка</a>
+      <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
     </div>
   </div>
 
@@ -141,14 +181,261 @@
 
   <div class="overlay group-overlay" id="groupPicker" role="dialog" aria-modal="true" aria-labelledby="groupPickerTitle" hidden>
     <div class="modal group-modal">
+      <div class="role-switch" role="group" aria-label="Кто смотрит расписание">
+        <button type="button" id="roleStudent" class="is-on" aria-pressed="true">Я студент</button>
+        <button type="button" id="roleTeacher" aria-pressed="false">Я преподаватель</button>
+      </div>
       <h2 id="groupPickerTitle">Выберите группу</h2>
-      <p class="hint">Так расписание сразу откроется на вашей группе. Позже её можно сменить в списке наверху.</p>
+      <p class="hint" id="groupPickerHint">Так расписание сразу откроется на вашей группе. Ниже можно выбрать подгруппу.</p>
       <input class="group-search" id="groupSearch" type="search" placeholder="Найти группу" autocomplete="off" enterkeyhint="search">
       <div id="groupList" class="group-list"></div>
-      <p id="groupEmpty" class="group-empty" hidden>Нет такой группы</p>
+      <p id="groupEmpty" class="group-empty" hidden>Ничего не найдено</p>
+      <div id="subgroupPick" class="subgroup-pick" hidden>
+        <p class="field-label">Подгруппа</p>
+        <div id="subgroupPickList" class="subgroup-picks"></div>
+      </div>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=6"></script>
+  <div class="overlay settings-overlay" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="modal settings-modal">
+      <div class="sheet-head">
+        <h2 id="settingsTitle">Настройки</h2>
+        <button type="button" class="icon-btn" id="settingsClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="field-label">Тема</p>
+      <div class="choice-row" id="themeChoices">
+        <button type="button" data-theme="system">Как в системе</button>
+        <button type="button" data-theme="light">Светлая</button>
+        <button type="button" data-theme="dark">Тёмная</button>
+      </div>
+
+      <p class="field-label">Вид</p>
+      <div class="choice-row" id="lookChoices">
+        <button type="button" data-look="standard">Стандартный</button>
+        <button type="button" data-look="simple">Упрощённый</button>
+      </div>
+
+      <p class="field-label">Цвета занятий</p>
+      <div class="color-grid">
+        <label>Практика <input type="color" id="colorPractice" value="#48d484"></label>
+        <label>Теория <input type="color" id="colorTheory" value="#3b8bfd"></label>
+        <label>Подгруппы <input type="color" id="colorSplit" value="#d93b3b"></label>
+      </div>
+      <button type="button" class="btn btn-quiet" id="colorReset">Сбросить цвета</button>
+
+      <p class="field-label">Списки на главном экране</p>
+      <label class="check-row"><input type="checkbox" id="showGroup"> Группа</label>
+      <label class="check-row"><input type="checkbox" id="showTeacher"> Преподаватель</label>
+      <label class="check-row"><input type="checkbox" id="showSubgroup"> Подгруппа</label>
+    </div>
+  </div>
+
+  <div class="overlay" id="addDialog" role="dialog" aria-modal="true" aria-labelledby="addTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="addTitle">Новое занятие</h2>
+        <button type="button" class="icon-btn" id="addClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="hint">Эту пару видите только вы. У остальных расписание не меняется.</p>
+      <form id="addForm" class="edit-form">
+        <label class="field"><span>Тип занятия</span>
+          <div class="select-wrap">
+            <select id="addKind">
+              <option value="theory">Теория</option>
+              <option value="split">Теория по подгруппам</option>
+              <option value="practice">Практика</option>
+            </select>
+          </div>
+        </label>
+        <label class="field" id="addSubgroupField" hidden><span>Подгруппа</span>
+          <div class="select-wrap">
+            <select id="addSubgroup">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+        </label>
+        <label class="field"><span>Время</span>
+          <div class="select-wrap"><select id="addTime"></select></div>
+        </label>
+        <label class="field" id="addNumberField"><span id="addNumberLabel">Номер пары</span>
+          <div class="select-wrap"><select id="addNumber"></select></div>
+        </label>
+        <p id="addSlotHint" class="hint"></p>
+        <label class="field" id="addTimeTextField" hidden><span>Своё время</span>
+          <input id="addTimeText" maxlength="40" placeholder="08:00–09:40" autocomplete="off">
+        </label>
+        <div class="subject-line">
+          <label class="field" id="addSubjectField"><span>Предмет</span>
+            <div class="select-wrap"><select id="addSubject"></select></div>
+          </label>
+          <label class="field" id="addSubjectTextField" hidden><span>Предмет</span>
+            <input id="addSubjectText" maxlength="160" placeholder="Своё название" autocomplete="off">
+          </label>
+          <button type="button" class="btn" id="addOther">Другое</button>
+        </div>
+        <label class="field"><span>Аудитория</span><input id="addRoom" maxlength="80" autocomplete="off"></label>
+        <p id="addError" class="hint" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn" id="addCancel">Отмена</button>
+          <button type="submit" class="btn">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="overlay" id="editDialog" role="dialog" aria-modal="true" aria-labelledby="editTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="editTitle">Изменить пару</h2>
+        <button type="button" class="icon-btn" id="editClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="hint">Это видно только вам. Общее расписание не меняется.</p>
+      <form id="editForm" class="edit-form">
+        <label class="field"><span id="editNumberLabel">Номер пары</span>
+          <div class="select-wrap"><select id="editNumber"></select></div>
+        </label>
+        <label class="field"><span>Время</span><input id="editTime" maxlength="40" placeholder="08:00–09:40" autocomplete="off"></label>
+        <label class="field"><span>Предмет</span><input id="editSubject" maxlength="160" autocomplete="off"></label>
+        <label class="field"><span>Подгруппа</span>
+          <div class="select-wrap">
+            <select id="editSubgroup">
+              <option value="">Вся группа</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+        </label>
+        <label class="field"><span>Аудитория</span><input id="editRoom" maxlength="80" autocomplete="off"></label>
+        <p id="editError" class="hint" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-quiet" id="editReset">Как в расписании</button>
+          <button type="button" class="btn" id="editCancel">Отмена</button>
+          <button type="submit" class="btn">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="overlay" id="deleteDialog" role="dialog" aria-modal="true" aria-labelledby="deleteTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="deleteTitle">Удалить пару</h2>
+        <button type="button" class="icon-btn" id="deleteClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p id="deleteText" class="hint"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="deleteCancel">Отмена</button>
+        <button type="button" class="btn btn-danger" id="deleteConfirm">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="deletedDialog" role="dialog" aria-modal="true" aria-labelledby="deletedTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="deletedTitle">Удалённые</h2>
+        <button type="button" class="icon-btn" id="deletedClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="deletedList" class="deleted-list"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="purgeDialog" role="dialog" aria-modal="true" aria-labelledby="purgeTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="purgeTitle">Удалить безвозвратно</h2>
+        <button type="button" class="icon-btn" id="purgeClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p id="purgeText" class="hint"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="purgeCancel">Отмена</button>
+        <button type="button" class="btn btn-danger" id="purgeConfirm">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="resetDayDialog" role="dialog" aria-modal="true" aria-labelledby="resetDayTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="resetDayTitle">Отменить изменения</h2>
+        <button type="button" class="icon-btn" id="resetDayClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="hint">Расписание на этот день вернётся к первоначальному виду.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="resetDayCancel">Отмена</button>
+        <button type="button" class="btn btn-danger" id="resetDayConfirm">Вернуть</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="conflictDialog" role="dialog" aria-modal="true" aria-labelledby="conflictTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="conflictTitle">Это время занято</h2>
+        <button type="button" class="icon-btn" id="conflictClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p id="conflictText" class="hint"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="conflictCancel">Отмена</button>
+        <button type="button" class="btn btn-danger" id="conflictConfirm">Продолжить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay install-overlay" id="installDialog" role="dialog" aria-modal="true" aria-labelledby="installTitle" hidden>
+    <div class="modal">
+      <div class="sheet-head">
+        <h2 id="installTitle">Как добавить ярлык</h2>
+        <button type="button" class="icon-btn" id="installClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <ol class="install-steps">
+        <li>Перейти на <a id="installSite" href="https://cyrstreming.github.io/schedulebsmc/">сайт</a> приложения. Открывать его нужно в браузере смартфона, не внутри Telegram.</li>
+        <li>Добавьте ярлык на рабочий стол. На Android в Chrome нажмите меню браузера (три точки) и выберите «Добавить на главный экран» или «Установить приложение». На iPhone в Safari нажмите «Поделиться» и выберите «На экран Домой».</li>
+      </ol>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>
