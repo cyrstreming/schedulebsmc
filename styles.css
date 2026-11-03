@@ -980,14 +980,26 @@ html:not(.in-telegram) .btn-install { display: none; }
 
 .btn-install {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
   margin-top: 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 14px;
   padding: 6px 10px;
   background: var(--accent);
   color: var(--on-accent);
   font-size: 12px;
   font-weight: 750;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.btn-install small {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 1.2;
+  opacity: 0.82;
 }
 
 .btn-gear {
