@@ -2064,6 +2064,8 @@ function isTextField(element) {
 
 /* Пока клавиатура закрывается, телефон иногда сразу возвращает фокус в поле. */
 let keyboardGuard = false;
+/* То же касание после сдвига окна не должно закрыть его как нажатие мимо. */
+let backdropBlockUntil = 0;
 
 /* Свободное место убирает клавиатуру. Кнопки и другие поля не трогаем, чтобы нажатие сработало. */
 function dismissKeyboard(event) {
@@ -2082,6 +2084,7 @@ function dismissKeyboard(event) {
   if (!isTextField(active)) return;
   event.preventDefault();
   keyboardGuard = true;
+  backdropBlockUntil = Date.now() + 700;
   active.blur();
   window.setTimeout(() => { keyboardGuard = false; }, 500);
 }
@@ -2096,6 +2099,7 @@ function guardKeyboardFocus(event) {
 
 function closeOnBackdrop(overlay, close) {
   overlay.addEventListener("click", (event) => {
+    if (Date.now() < backdropBlockUntil) return;
     if (event.target === overlay) close();
   });
 }
