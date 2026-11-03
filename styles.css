@@ -88,7 +88,11 @@ input:focus-visible {
 .app {
   width: min(520px, 100%);
   margin: 0 auto;
-  padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+  padding:
+    calc(20px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px))
+    calc(16px + var(--tg-safe-area-inset-right, 0px) + var(--tg-content-safe-area-inset-right, 0px))
+    calc(28px + env(safe-area-inset-bottom) + var(--tg-safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px))
+    calc(16px + var(--tg-safe-area-inset-left, 0px) + var(--tg-content-safe-area-inset-left, 0px));
 }
 
 .loader {
@@ -135,13 +139,6 @@ input:focus-visible {
 }
 
 .hero-copy { flex: 1; min-width: 0; }
-
-.hero-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
 .logo {
   width: 44px;
@@ -982,6 +979,8 @@ body.theme-dark .badge-note {
 html:not(.in-telegram) .btn-install { display: none; }
 
 .btn-install {
+  display: inline-flex;
+  margin-top: 10px;
   border: 0;
   border-radius: 999px;
   padding: 6px 10px;
@@ -1096,9 +1095,62 @@ html:not(.in-telegram) .btn-install { display: none; }
   font-weight: 700;
 }
 
+.switch {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch span {
+  display: block;
+  width: 46px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.switch span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked + span {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.switch input:checked + span::after { transform: translateX(18px); }
+
+.switch input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+html.no-entry-warn #notice { display: none !important; }
+
 .color-grid input[type="color"] {
   width: 42px;
   height: 32px;
+  flex: 0 0 auto;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1254,6 +1306,8 @@ body.modal-open { overflow: hidden; }
   .cal-track,
   .day,
   .icon-btn,
+  .switch span,
+  .switch span::after,
   .countdown,
   .time-fill,
   #dayBody,

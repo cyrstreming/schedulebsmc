@@ -44,6 +44,7 @@ const state = {
   showGroup: false,
   showTeacher: false,
   showSubgroup: true,
+  warnOnOpen: true,
   year: 0,
   month: 0,
   selected: ""
@@ -180,6 +181,7 @@ const colorReset = document.querySelector("#colorReset");
 const showGroup = document.querySelector("#showGroup");
 const showTeacher = document.querySelector("#showTeacher");
 const showSubgroup = document.querySelector("#showSubgroup");
+const warnOnOpen = document.querySelector("#warnOnOpen");
 const CONTACT_URL = "https://t.me/cyrstreming";
 
 function formatISO(date) {
@@ -314,6 +316,17 @@ function applyTheme(scheme) {
   if (!tg) return;
   try { tg.setHeaderColor(background); } catch (error) { /* старые клиенты */ }
   try { tg.setBackgroundColor(background); } catch (error) { /* старые клиенты */ }
+  try { tg.setBottomBarColor(background); } catch (error) { /* старые клиенты */ }
+}
+
+/* Прозрачная шапка Telegram, чтобы неоновый фон доходил до надписи мини-приложения. */
+function openFullscreen() {
+  if (!tg || typeof tg.requestFullscreen !== "function") return;
+  try {
+    if (typeof tg.isVersionAtLeast === "function" && !tg.isVersionAtLeast("8.0")) return;
+    if (tg.isFullscreen) return;
+    tg.requestFullscreen();
+  } catch (error) { /* клиент без полноэкранного режима */ }
 }
 
 function applyLook() {
@@ -651,6 +664,7 @@ function saveState() {
       showGroup: state.showGroup,
       showTeacher: state.showTeacher,
       showSubgroup: state.showSubgroup,
+      warnOnOpen: state.warnOnOpen,
       subgroupMenu: 3,
       listsDefault: 2,
       pickerReset: 2
@@ -2039,6 +2053,34 @@ function selectDate(iso, shouldScroll) {
   if (shouldScroll) scrollToSchedule();
 }
 
+function isTextField(element) {
+  if (!element) return false;
+  const tag = element.tagName;
+  if (tag === "TEXTAREA") return true;
+  if (tag !== "INPUT") return false;
+  const type = (element.type || "text").toLowerCase();
+  return !["button", "checkbox", "radio", "color", "file", "range", "submit", "reset"].includes(type);
+}
+
+/* Свободное место убирает клавиатуру. Кнопки и другие поля не трогаем, чтобы нажатие сработало. */
+function dismissKeyboard(event) {
+  const active = document.activeElement;
+  if (!isTextField(active)) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (isTextField(target.closest("input, textarea"))) return;
+  const label = target.closest("label");
+  if (label && label.contains(active)) return;
+  if (target.closest("button, a, select, [role='button']")) return;
+  active.blur();
+}
+
+function closeOnBackdrop(overlay, close) {
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) close();
+  });
+}
+
 function syncModal() {
   const open = !notice.hidden || !groupPicker.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   document.body.classList.toggle("modal-open", open);
@@ -2174,6 +2216,17 @@ function syncSettingsControls() {
   showGroup.checked = state.showGroup;
   showTeacher.checked = state.showTeacher;
   showSubgroup.checked = state.showSubgroup;
+  warnOnOpen.checked = state.warnOnOpen;
+}
+
+function closeSettings() {
+  settings.hidden = true;
+  syncModal();
+}
+
+function closeInstall() {
+  installDialog.hidden = true;
+  syncModal();
 }
 
 function openSettings() {
@@ -2346,10 +2399,7 @@ function bindEvents() {
   });
 
   settingsButton.addEventListener("click", openSettings);
-  settingsClose.addEventListener("click", () => {
-    settings.hidden = true;
-    syncModal();
-  });
+  settingsClose.addEventListener("click", closeSettings);
   themeChoices.addEventListener("click", (event) => {
     const button = event.target.closest("[data-theme]");
     if (button) setThemeChoice(button.dataset.theme);
@@ -2382,15 +2432,17 @@ function bindEvents() {
     syncFilterVisibility();
     saveState();
   });
+  warnOnOpen.addEventListener("change", () => {
+    state.warnOnOpen = warnOnOpen.checked;
+    document.documentElement.classList.toggle("no-entry-warn", !state.warnOnOpen);
+    saveState();
+  });
 
   installButton.addEventListener("click", () => {
     installDialog.hidden = false;
     syncModal();
   });
-  installClose.addEventListener("click", () => {
-    installDialog.hidden = true;
-    syncModal();
-  });
+  installClose.addEventListener("click", closeInstall);
   installSite.addEventListener("click", (event) => {
     if (!tg || typeof tg.openLink !== "function") return;
     event.preventDefault();
@@ -2452,6 +2504,18 @@ function bindEvents() {
   addNumber.addEventListener("change", () => {
     if (addTime.value === "schedule") addSlotHint.textContent = addTimeTable()[addNumber.value] || "";
   });
+  closeOnBackdrop(notice, closeNotice);
+  closeOnBackdrop(settings, closeSettings);
+  closeOnBackdrop(installDialog, closeInstall);
+  closeOnBackdrop(addDialog, closeAdd);
+  closeOnBackdrop(editDialog, closeEdit);
+  closeOnBackdrop(deleteDialog, closeDelete);
+  closeOnBackdrop(deletedDialog, closeDeleted);
+  closeOnBackdrop(purgeDialog, closePurge);
+  closeOnBackdrop(resetDayDialog, closeResetDay);
+  closeOnBackdrop(conflictDialog, closeConflict);
+  document.addEventListener("pointerdown", dismissKeyboard);
+
   addOther.addEventListener("click", () => {
     addCustomSubject = !addCustomSubject;
     if (addCustomSubject && !addSubject.options.length) addCustomSubject = true;
@@ -2486,6 +2550,7 @@ function readPrefs(prefs) {
   state.showGroup = listsSaved && prefs.showGroup === true;
   state.showTeacher = listsSaved && prefs.showTeacher === true;
   state.showSubgroup = prefs.subgroupMenu === 3 ? prefs.showSubgroup === true : true;
+  state.warnOnOpen = prefs.warnOnOpen !== false;
   const colors = prefs.colors && typeof prefs.colors === "object" ? prefs.colors : {};
   for (const key of ["practice", "theory", "split"]) {
     state.colors[key] = /^#[0-9a-fA-F]{6}$/.test(colors[key] || "") ? colors[key] : "";
@@ -2502,6 +2567,7 @@ async function init() {
   if (tg) {
     tg.ready();
     if (typeof tg.expand === "function") tg.expand();
+    openFullscreen();
     if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
     if (typeof tg.onEvent === "function") {
       tg.onEvent("themeChanged", () => {
@@ -2515,7 +2581,13 @@ async function init() {
   }
 
   noticeButton.addEventListener("click", closeNotice);
-  noticeButton.focus();
+  if (!state.warnOnOpen) {
+    notice.hidden = true;
+    document.documentElement.classList.remove("no-entry-warn");
+    syncModal();
+  } else {
+    noticeButton.focus();
+  }
   bindEvents();
   window.addEventListener("pagehide", () => {
     flushNotes();
@@ -2572,6 +2644,11 @@ async function init() {
     }
 
     awaitingGroup = true;
+    if (notice.hidden) {
+      groupPicker.hidden = false;
+      syncModal();
+      groupSearch.focus();
+    }
   } catch (error) {
     showFatal("Не удалось загрузить расписание. Откройте страницу через GitHub Pages или локальный сервер, а не как файл с диска.");
   }
