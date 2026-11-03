@@ -1230,7 +1230,11 @@ html.no-entry-warn #notice { display: none !important; }
   background: var(--overlay);
   overscroll-behavior: none;
   touch-action: none;
+  opacity: 0;
+  transition: opacity 0.28s ease;
 }
+
+.overlay.is-shown { opacity: 1; }
 
 .modal {
   width: min(480px, 100%);
@@ -1243,7 +1247,11 @@ html.no-entry-warn #notice { display: none !important; }
   border-radius: 22px;
   background: var(--surface);
   box-shadow: var(--shadow);
+  transform: translateY(40px);
+  transition: transform 0.32s cubic-bezier(0.2, 0.85, 0.2, 1);
 }
+
+.overlay.is-shown .modal { transform: translateY(0); }
 
 .modal-head {
   display: flex;
@@ -1319,6 +1327,8 @@ body.modal-open {
 
 @media (min-width: 640px) {
   .overlay { align-items: center; }
+  .overlay .modal { transform: translateY(18px) scale(0.98); }
+  .overlay.is-shown .modal { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1335,7 +1345,9 @@ body.modal-open {
   .countdown,
   .time-fill,
   #dayBody,
-  .lessons { animation: none; transition: none; }
+  .lessons,
+  .overlay,
+  .overlay .modal { animation: none; transition: none; }
 }
 
 html.look-standard body {

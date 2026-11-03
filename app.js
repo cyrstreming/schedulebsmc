@@ -1242,15 +1242,13 @@ function openEdit(id) {
   editRoom.value = view.room ? String(view.room).trim() : "";
   editReset.hidden = !edits[id] || edits[id].deleted;
   editError.hidden = true;
-  editDialog.hidden = false;
-  syncModal();
-  editSubject.focus();
+  showOverlay(editDialog);
+  editSubject.focus({ preventScroll: true });
 }
 
 function closeEdit() {
-  editDialog.hidden = true;
+  hideOverlay(editDialog);
   editingId = "";
-  syncModal();
 }
 
 function draftFromForm(source) {
@@ -1336,15 +1334,13 @@ function conflictMessage(victims) {
 function askConflict(victims, action) {
   pendingConflict = { victims: victims.map((lesson) => lesson.id), action };
   conflictText.textContent = conflictMessage(victims);
-  conflictDialog.hidden = false;
-  syncModal();
-  conflictCancel.focus();
+  showOverlay(conflictDialog);
+  conflictCancel.focus({ preventScroll: true });
 }
 
 function closeConflict() {
   pendingConflict = null;
-  conflictDialog.hidden = true;
-  syncModal();
+  hideOverlay(conflictDialog);
 }
 
 function confirmConflict() {
@@ -1352,7 +1348,7 @@ function confirmConflict() {
   for (const id of pendingConflict.victims) edits[id] = { deleted: true };
   pendingConflict.action();
   pendingConflict = null;
-  conflictDialog.hidden = true;
+  hideOverlay(conflictDialog);
   saveEdits();
   closeEdit();
   closeAdd();
@@ -1416,15 +1412,13 @@ function openDelete(id) {
   editingId = id;
   deleteTitle.textContent = `Удалить ${unitAccusative(view)}`;
   deleteText.textContent = `Убрать ${unitAccusative(view)} «${displayText(view.subject, "это занятие")}» из вашего расписания?`;
-  deleteDialog.hidden = false;
-  syncModal();
-  deleteCancel.focus();
+  showOverlay(deleteDialog);
+  deleteCancel.focus({ preventScroll: true });
 }
 
 function closeDelete() {
-  deleteDialog.hidden = true;
+  hideOverlay(deleteDialog);
   editingId = "";
-  syncModal();
 }
 
 function confirmDelete() {
@@ -1496,13 +1490,11 @@ function openDeleted() {
     row.append(text, actions);
     deletedList.append(row);
   }
-  deletedDialog.hidden = false;
-  syncModal();
+  showOverlay(deletedDialog);
 }
 
 function closeDeleted() {
-  deletedDialog.hidden = true;
-  syncModal();
+  hideOverlay(deletedDialog);
 }
 
 function openPurge(id) {
@@ -1511,15 +1503,13 @@ function openPurge(id) {
   purgingId = id;
   const name = displayText(source.subject, "Занятие");
   purgeText.textContent = `«${name}» будет удалено безвозвратно.`;
-  purgeDialog.hidden = false;
-  syncModal();
-  purgeCancel.focus();
+  showOverlay(purgeDialog);
+  purgeCancel.focus({ preventScroll: true });
 }
 
 function closePurge() {
   purgingId = "";
-  purgeDialog.hidden = true;
-  syncModal();
+  hideOverlay(purgeDialog);
 }
 
 function confirmPurge() {
@@ -1560,14 +1550,12 @@ function restoreLesson(id) {
 }
 
 function openResetDay() {
-  resetDayDialog.hidden = false;
-  syncModal();
-  resetDayCancel.focus();
+  showOverlay(resetDayDialog);
+  resetDayCancel.focus({ preventScroll: true });
 }
 
 function closeResetDay() {
-  resetDayDialog.hidden = true;
-  syncModal();
+  hideOverlay(resetDayDialog);
 }
 
 function confirmResetDay() {
@@ -1675,15 +1663,13 @@ function openAdd() {
   syncAddTimeFields();
   syncAddSubjectMode();
   addError.hidden = true;
-  addDialog.hidden = false;
-  syncModal();
-  if (addCustomSubject) addSubjectText.focus();
-  else addSubject.focus();
+  showOverlay(addDialog);
+  if (addCustomSubject) addSubjectText.focus({ preventScroll: true });
+  else addSubject.focus({ preventScroll: true });
 }
 
 function closeAdd() {
-  addDialog.hidden = true;
-  syncModal();
+  hideOverlay(addDialog);
 }
 
 function draftAddedLesson() {
@@ -2097,6 +2083,70 @@ function guardKeyboardFocus(event) {
   }, 0);
 }
 
+const overlayHide = new WeakMap();
+
+function motionReduced() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/* Окно проявляется и уходит, а не появляется сразу. */
+function showOverlay(overlay) {
+  const pending = overlayHide.get(overlay);
+  if (pending) {
+    clearTimeout(pending.timer);
+    overlay.removeEventListener("transitionend", pending.onEnd);
+    overlayHide.delete(overlay);
+  }
+  overlay.hidden = false;
+  if (overlay.classList.contains("is-shown")) {
+    syncModal();
+    return;
+  }
+  if (motionReduced()) {
+    overlay.classList.add("is-shown");
+    syncModal();
+    return;
+  }
+  overlay.classList.remove("is-shown");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => overlay.classList.add("is-shown"));
+  });
+  syncModal();
+}
+
+function hideOverlay(overlay, done) {
+  if (!overlay || overlay.hidden) {
+    if (done) done();
+    return;
+  }
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    const pending = overlayHide.get(overlay);
+    if (pending) {
+      clearTimeout(pending.timer);
+      overlay.removeEventListener("transitionend", pending.onEnd);
+      overlayHide.delete(overlay);
+    }
+    overlay.classList.remove("is-shown");
+    overlay.hidden = true;
+    syncModal();
+    if (done) done();
+  };
+  if (motionReduced() || !overlay.classList.contains("is-shown")) {
+    finish();
+    return;
+  }
+  const onEnd = (event) => {
+    if (event.target !== overlay || event.propertyName !== "opacity") return;
+    finish();
+  };
+  overlayHide.set(overlay, { timer: window.setTimeout(finish, 420), onEnd });
+  overlay.addEventListener("transitionend", onEnd);
+  overlay.classList.remove("is-shown");
+}
+
 function closeOnBackdrop(overlay, close) {
   overlay.addEventListener("click", (event) => {
     if (Date.now() < backdropBlockUntil) return;
@@ -2109,16 +2159,22 @@ let lockedScroll = 0;
 
 function syncModal() {
   const open = !notice.hidden || !groupPicker.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
-  document.body.classList.toggle("modal-open", open);
   if (open && !scrollLocked) {
-    lockedScroll = window.scrollY;
+    lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
     scrollLocked = true;
     document.body.style.top = `-${lockedScroll}px`;
-  } else if (!open && scrollLocked) {
-    scrollLocked = false;
-    document.body.style.top = "";
-    window.scrollTo(0, lockedScroll);
+    document.body.classList.add("modal-open");
+    return;
   }
+  if (!open && scrollLocked) {
+    const y = lockedScroll;
+    scrollLocked = false;
+    document.body.classList.remove("modal-open");
+    document.body.style.top = "";
+    window.scrollTo(0, y);
+    return;
+  }
+  document.body.classList.toggle("modal-open", open);
 }
 
 /* Жест по окну не прокручивает расписание под ним. */
@@ -2146,14 +2202,12 @@ function holdSheetScroll(event) {
 }
 
 function closeNotice() {
-  notice.hidden = true;
-  if (awaitingGroup) {
-    groupPicker.hidden = false;
-    syncModal();
-    groupSearch.focus();
-    return;
-  }
-  syncModal();
+  const openPicker = awaitingGroup;
+  hideOverlay(notice, () => {
+    if (!openPicker) return;
+    showOverlay(groupPicker);
+    groupSearch.focus({ preventScroll: true });
+  });
 }
 
 function fillPickerList() {
@@ -2209,7 +2263,7 @@ function showSubgroupPick(group) {
 
 function finishFirstChoice() {
   awaitingGroup = false;
-  groupPicker.hidden = true;
+  hideOverlay(groupPicker);
   appContent.hidden = false;
   syncSubgroupOptions();
   saveState();
@@ -2279,19 +2333,16 @@ function syncSettingsControls() {
 }
 
 function closeSettings() {
-  settings.hidden = true;
-  syncModal();
+  hideOverlay(settings);
 }
 
 function closeInstall() {
-  installDialog.hidden = true;
-  syncModal();
+  hideOverlay(installDialog);
 }
 
 function openSettings() {
   syncSettingsControls();
-  settings.hidden = false;
-  syncModal();
+  showOverlay(settings);
 }
 
 function setThemeChoice(theme) {
@@ -2498,8 +2549,7 @@ function bindEvents() {
   });
 
   installButton.addEventListener("click", () => {
-    installDialog.hidden = false;
-    syncModal();
+    showOverlay(installDialog);
   });
   installClose.addEventListener("click", closeInstall);
   installSite.addEventListener("click", (event) => {
@@ -2583,7 +2633,7 @@ function bindEvents() {
     addCustomSubject = !addCustomSubject;
     if (addCustomSubject && !addSubject.options.length) addCustomSubject = true;
     syncAddSubjectMode();
-    if (addCustomSubject) addSubjectText.focus();
+    if (addCustomSubject) addSubjectText.focus({ preventScroll: true });
   });
   bindSwipe();
 }
@@ -2649,7 +2699,8 @@ async function init() {
     document.documentElement.classList.remove("no-entry-warn");
     syncModal();
   } else {
-    noticeButton.focus();
+    showOverlay(notice);
+    noticeButton.focus({ preventScroll: true });
   }
   bindEvents();
   window.addEventListener("pagehide", () => {
@@ -2708,9 +2759,8 @@ async function init() {
 
     awaitingGroup = true;
     if (notice.hidden) {
-      groupPicker.hidden = false;
-      syncModal();
-      groupSearch.focus();
+      showOverlay(groupPicker);
+      groupSearch.focus({ preventScroll: true });
     }
   } catch (error) {
     showFatal("Не удалось загрузить расписание. Откройте страницу через GitHub Pages или локальный сервер, а не как файл с диска.");
