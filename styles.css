@@ -18,6 +18,15 @@ body.theme-light {
   --overlay: rgba(10, 16, 32, 0.5);
   --toast-bg: #121826;
   --toast-text: #f4f6fb;
+  --c-practice: #48d484;
+  --c-theory: #3b8bfd;
+  --c-split: #d93b3b;
+  --c-practice-ink: #128a4e;
+  --c-theory-ink: #1d64d8;
+  --c-split-ink: #d93b3b;
+  --c-soon: #d93b3b;
+  --c-ending: #128a4e;
+  --c-note: #e0ac00;
 }
 
 html.theme-dark,
@@ -38,6 +47,12 @@ body.theme-dark {
   --overlay: rgba(3, 6, 16, 0.72);
   --toast-bg: #e8f1ff;
   --toast-text: #0b132b;
+  --c-practice-ink: #48d484;
+  --c-theory-ink: #8cbcff;
+  --c-split-ink: #ff7b7b;
+  --c-soon: #ff7b7b;
+  --c-ending: #48d484;
+  --c-note: #ffe14a;
 }
 
 * { box-sizing: border-box; }
@@ -56,13 +71,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, select, textarea { font: inherit; color: inherit; }
+button, select, textarea, input { font: inherit; color: inherit; }
 
 button { cursor: pointer; }
 
 button:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -148,6 +164,14 @@ textarea:focus-visible {
   margin-top: 18px;
 }
 
+.filter-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 10px;
+}
+
+.filter-pair .field { min-width: 0; }
+
 .field-label,
 .field > span {
   display: block;
@@ -230,11 +254,28 @@ select {
 }
 
 .btn-today {
-  height: 48px;
-  margin-left: auto;
-  padding: 0 16px;
-  font-weight: 700;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 750;
   white-space: nowrap;
+  flex: 0 0 auto;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-today.is-quiet,
+.btn-today:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  opacity: 0.72;
+  cursor: default;
+  transform: none;
 }
 
 .calendar {
@@ -244,6 +285,9 @@ select {
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--shadow);
+  touch-action: pan-y;
+  user-select: none;
+  overflow: hidden;
 }
 
 .cal-nav {
@@ -252,6 +296,16 @@ select {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.cal-heading {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .cal-nav h2 {
@@ -270,7 +324,14 @@ select {
   background: var(--surface-2);
   color: var(--text);
   flex: 0 0 auto;
+  transition: background-color 0.2s ease, transform 0.18s ease;
 }
+
+.icon-btn:active,
+.btn:active,
+.group-option:active { transform: scale(0.97); }
+
+.btn-today:disabled:active { transform: none; }
 
 .weekdays, .grid {
   display: grid;
@@ -285,7 +346,25 @@ select {
   color: var(--muted);
 }
 
+.cal-viewport {
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.cal-track {
+  display: flex;
+  width: 300%;
+  transform: translateX(-33.333333%);
+}
+
+.cal-track .grid {
+  width: 33.333333%;
+  flex: 0 0 33.333333%;
+}
+
 .grid { gap: 2px; }
+
+.cal-track .grid.is-side { pointer-events: none; }
 
 .day {
   display: flex;
@@ -302,37 +381,44 @@ select {
   color: var(--text);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
-.day.is-weekend:not(.is-selected) { color: var(--weekend); }
+.day.is-weekend:not(.is-outside) { color: var(--weekend); }
 
-.day.is-outside:not(.is-selected) { color: var(--faint); }
+.day.is-outside { color: var(--faint); }
 
-.day.has-lessons:not(.is-selected):not(.is-outside) {
-  background: var(--accent-2);
+.day.tone-practice { background: rgba(72, 212, 132, 0.3); }
+
+.day.tone-theory { background: rgba(59, 139, 253, 0.22); }
+
+.day.tone-split { background: rgba(217, 59, 59, 0.18); }
+
+.day.is-today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+.day.is-selected { box-shadow: inset 0 0 0 2px var(--text); }
+
+.day.is-today.is-selected {
+  box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--accent);
 }
 
-.day.is-today:not(.is-selected) {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-
-.day.is-selected {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 750;
+.dots {
+  display: flex;
+  gap: 3px;
+  height: 6px;
 }
 
 .dot {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--accent);
-  opacity: 0;
 }
 
-.day.has-lessons .dot { opacity: 1; }
+.dot-practice { background: var(--c-practice); }
 
-.day.is-selected .dot { background: var(--on-accent); }
+.dot-theory { background: var(--c-theory); }
+
+.dot-split { background: var(--c-split); }
 
 .results {
   display: flex;
@@ -380,9 +466,31 @@ select {
 .lesson {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-left-color: var(--border);
   border-radius: 18px;
   box-shadow: var(--shadow);
   overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lesson.kind-practice { border-left-color: var(--c-practice); }
+
+.lesson.kind-theory { border-left-color: var(--c-theory); }
+
+.lesson.kind-split { border-left-color: var(--c-split); }
+
+.lesson.kind-practice .meta { color: var(--c-practice-ink); }
+
+.lesson.kind-theory .meta { color: var(--c-theory-ink); }
+
+.lesson.kind-split .meta { color: var(--c-split-ink); }
+
+.lessons.is-fresh { animation: rise 0.28s ease; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .lesson-head {
@@ -441,6 +549,21 @@ body.theme-dark .badge {
   color: var(--muted);
 }
 
+.badge-practice {
+  background: rgba(72, 212, 132, 0.22);
+  color: var(--c-practice-ink);
+}
+
+.badge-theory {
+  background: rgba(59, 139, 253, 0.16);
+  color: var(--c-theory-ink);
+}
+
+.badge-split {
+  background: rgba(217, 59, 59, 0.14);
+  color: var(--c-split-ink);
+}
+
 .chevron {
   flex: 0 0 auto;
   margin-top: 2px;
@@ -468,7 +591,7 @@ body.theme-dark .badge {
   display: grid;
   gap: 10px;
   margin: 0;
-  padding: 0 14px 14px;
+  padding: 0 14px;
 }
 
 .details div {
@@ -496,11 +619,118 @@ body.theme-dark .badge {
 .room-note {
   display: block;
   margin-top: 4px;
-  color: var(--muted);
+  color: var(--c-note);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 650;
   line-height: 1.35;
 }
+
+.progress {
+  margin: 10px 0 0;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.progress strong {
+  color: var(--text);
+  font-weight: 780;
+}
+
+.countdown {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.35;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.countdown.is-soon {
+  color: var(--c-soon);
+  background: rgba(217, 59, 59, 0.1);
+  border-color: transparent;
+}
+
+.countdown.is-ending {
+  color: var(--c-ending);
+  background: rgba(72, 212, 132, 0.18);
+  border-color: transparent;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.swatch-practice { background: var(--c-practice); }
+
+.swatch-theory { background: var(--c-theory); }
+
+.swatch-split { background: var(--c-split); }
+
+.group-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: min(78vh, 640px);
+}
+
+.group-search {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+}
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  overflow: auto;
+}
+
+.group-option {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-weight: 750;
+  text-align: left;
+}
+
+.group-empty {
+  margin: 12px 0 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.group-overlay { z-index: 35; }
 
 .teacher-now {
   margin: 0;
@@ -638,5 +868,11 @@ body.modal-open { overflow: hidden; }
   .spinner,
   .lesson-panel,
   .chevron,
-  .toast { animation: none; transition: none; }
+  .toast,
+  .grid,
+  .cal-track,
+  .day,
+  .icon-btn,
+  .countdown,
+  .lessons { animation: none; transition: none; }
 }
