@@ -7,7 +7,7 @@
 
 const STORAGE_KEY = "college-schedule-filters";
 const NOTES_KEY = "college-schedule-notes";
-const EDITS_KEY = "college-schedule-edits";
+const DEVICE_KEY = "college-schedule-device";
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 const WEEKDAYS = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
@@ -58,6 +58,8 @@ const practiceByTeacher = new Map();
 let groups = [];
 let teachers = [];
 let awaitingGroup = false;
+let linkGate = false;
+let entryReady = null;
 let pickerRole = "student";
 let pickedGroup = "";
 
@@ -182,6 +184,16 @@ const showGroup = document.querySelector("#showGroup");
 const showTeacher = document.querySelector("#showTeacher");
 const showSubgroup = document.querySelector("#showSubgroup");
 const warnOnOpen = document.querySelector("#warnOnOpen");
+const syncStatus = document.querySelector("#syncStatus");
+const syncCodeButton = document.querySelector("#syncCodeButton");
+const syncCode = document.querySelector("#syncCode");
+const installCodeStatus = document.querySelector("#installCodeStatus");
+const linkDialog = document.querySelector("#linkDialog");
+const linkForm = document.querySelector("#linkForm");
+const linkCodeInput = document.querySelector("#linkCodeInput");
+const linkStatus = document.querySelector("#linkStatus");
+const linkSkip = document.querySelector("#linkSkip");
+const settingsLink = document.querySelector("#settingsLink");
 const CONTACT_URL = "https://t.me/cyrstreming";
 
 function formatISO(date) {
@@ -393,6 +405,7 @@ function noteKey(lesson) {
 const loadedNotes = loadNotes();
 const notes = loadedNotes.items;
 let notesSavedAt = loadedNotes.savedAt;
+let filtersSavedAt = Number(loadPrefs().savedAt) || 0;
 let remoteTimer = 0;
 
 /** DeviceStorage переживает закрытие Telegram. CloudStorage — запасной вариант. */
@@ -521,6 +534,7 @@ function saveNotes() {
   }
   window.clearTimeout(remoteTimer);
   remoteTimer = window.setTimeout(() => writeRemote("cs-notes", payload, notesSavedAt), 200);
+  scheduleCloudPush();
 }
 
 function flushNotes() {
@@ -534,6 +548,7 @@ function flushNotes() {
     /* Локальная копия необязательна, если есть хранилище Telegram. */
   }
   writeRemote("cs-notes", payload, notesSavedAt);
+  pushCloud();
 }
 
 function normalizeAdded(item) {
@@ -625,6 +640,7 @@ function saveEdits() {
   try { localStorage.setItem(EDITS_KEY, payload); } catch (error) { /* хранилище может быть запрещено */ }
   window.clearTimeout(editsTimer);
   editsTimer = window.setTimeout(() => writeRemote("cs-edits", payload, editsSavedAt), 200);
+  scheduleCloudPush();
 }
 
 function flushEdits() {
@@ -634,6 +650,7 @@ function flushEdits() {
   const payload = editsPayload();
   try { localStorage.setItem(EDITS_KEY, payload); } catch (error) { /* локальная копия необязательна */ }
   writeRemote("cs-edits", payload, editsSavedAt);
+  pushCloud();
 }
 
 /** Личная правка не меняет общий файл: в карточке показывается копия. */
@@ -653,8 +670,61 @@ function viewLesson(lesson) {
 }
 
 function saveState() {
+  const next = {
+    group: state.group,
+    subgroup: state.subgroup,
+    teacher: state.teacher,
+    theme: state.theme,
+    look: state.look,
+    colors: state.colors,
+    showGroup: state.showGroup,
+    showTeacher: state.showTeacher,
+    showSubgroup: state.showSubgroup,
+    warnOnOpen: state.warnOnOpen,
+    subgroupMenu: 3,
+    listsDefault: 2,
+    pickerReset: 2
+  };
+  const previous = loadPrefs();
+  const same = ["group", "subgroup", "teacher", "theme", "look", "showGroup", "showTeacher", "showSubgroup", "warnOnOpen", "subgroupMenu", "listsDefault", "pickerReset"]
+    .every((key) => JSON.stringify(previous[key]) === JSON.stringify(next[key]))
+    && JSON.stringify(previous.colors || {}) === JSON.stringify(next.colors);
+  if (!same) filtersSavedAt = Date.now();
+  next.savedAt = filtersSavedAt;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (error) {
+    /* В приватном режиме браузер может запретить localStorage. */
+  }
+  if (!same) scheduleCloudPush();
+}
+
+const SYNC_DEVICE = DEVICE_KEY;
+let cloudTimer = 0;
+let applyingCloud = false;
+
+function syncUrl() {
+  const meta = document.querySelector('meta[name="sync-url"]');
+  return (meta && meta.content || "").trim().replace(/\/$/, "");
+}
+
+function deviceToken() {
+  try { return localStorage.getItem(SYNC_DEVICE) || ""; } catch (error) { return ""; }
+}
+
+function cloudAuthHeaders() {
+  const headers = { "content-type": "application/json" };
+  const initData = tg?.initData || "";
+  if (initData) headers["x-telegram-init-data"] = initData;
+  else if (deviceToken()) headers.authorization = `Bearer ${deviceToken()}`;
+  else return null;
+  return headers;
+}
+
+function cloudSnapshot() {
+  return {
+    filters: {
+      savedAt: filtersSavedAt,
       group: state.group,
       subgroup: state.subgroup,
       teacher: state.teacher,
@@ -668,10 +738,197 @@ function saveState() {
       subgroupMenu: 3,
       listsDefault: 2,
       pickerReset: 2
-    }));
+    },
+    notes: { savedAt: notesSavedAt, items: notes },
+    edits: { savedAt: editsSavedAt, items: edits, added: addedLessons }
+  };
+}
+
+function scheduleCloudPush() {
+  if (applyingCloud || !syncUrl() || !cloudAuthHeaders()) return;
+  window.clearTimeout(cloudTimer);
+  cloudTimer = window.setTimeout(() => pushCloud(), 400);
+}
+
+async function pushCloud() {
+  const url = syncUrl();
+  const headers = cloudAuthHeaders();
+  if (!url || !headers || applyingCloud) return;
+  try {
+    await fetch(`${url}/v1/state`, { method: "PUT", headers, body: JSON.stringify(cloudSnapshot()), keepalive: true });
+  } catch (error) { /* без сети остаётся местная копия */ }
+}
+
+function hasNotes() {
+  return notesSavedAt > 0 || Object.keys(notes).length > 0;
+}
+
+function hasEdits() {
+  return editsSavedAt > 0 || Object.keys(edits).length > 0 || addedLessons.length > 0;
+}
+
+function hasFilters() {
+  return filtersSavedAt > 0 || Boolean(state.group) || state.teacher !== "all";
+}
+
+function applyCloudNotes(remote) {
+  if (!remote || !(remote.savedAt > notesSavedAt)) return false;
+  replaceNotes(remote.items);
+  notesSavedAt = remote.savedAt;
+  try { localStorage.setItem(NOTES_KEY, notesPayload()); } catch (error) { /* местная копия необязательна */ }
+  return true;
+}
+
+function applyCloudEdits(remote) {
+  if (!remote || !(remote.savedAt > editsSavedAt)) return false;
+  replaceEdits(remote.items, remote.added);
+  editsSavedAt = remote.savedAt;
+  try { localStorage.setItem(EDITS_KEY, editsPayload()); } catch (error) { /* местная копия необязательна */ }
+  return true;
+}
+
+function applyCloudFilters(remote) {
+  if (!remote || !(remote.savedAt > filtersSavedAt)) return false;
+  applyingCloud = true;
+  if (groups.includes(remote.group)) state.group = remote.group;
+  if (remote.teacher === "all" || teachers.includes(remote.teacher)) state.teacher = remote.teacher;
+  readPrefs(remote);
+  filtersSavedAt = Number(remote.savedAt) || 0;
+  if (state.group) groupSelect.value = state.group;
+  teacherSelect.value = teachers.includes(state.teacher) ? state.teacher : "all";
+  if (!teachers.includes(state.teacher)) state.teacher = "all";
+  applyTheme(resolvedScheme());
+  applyLook();
+  applyColors();
+  syncFilterVisibility();
+  document.documentElement.classList.toggle("no-entry-warn", !state.warnOnOpen);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...remote, savedAt: filtersSavedAt, group: state.group, teacher: state.teacher }));
+  } catch (error) { /* местная копия необязательна */ }
+  applyingCloud = false;
+  return true;
+}
+
+/** Забирает более свежие личные данные и отправляет то, что новее на этом телефоне. */
+async function pullCloud() {
+  const url = syncUrl();
+  const headers = cloudAuthHeaders();
+  if (!url || !headers) return;
+  let remote = null;
+  try {
+    const response = await fetch(`${url}/v1/state`, { headers });
+    if (!response.ok) return;
+    remote = await response.json();
   } catch (error) {
-    /* В приватном режиме браузер может запретить localStorage. */
+    return;
   }
+  const changedNotes = applyCloudNotes(remote.notes);
+  const changedEdits = applyCloudEdits(remote.edits);
+  const changedFilters = applyCloudFilters(remote.filters);
+  const upload = (!remote.notes && hasNotes()) || (!remote.edits && hasEdits()) || (!remote.filters && hasFilters())
+    || (remote.notes && notesSavedAt > sectionTime(remote.notes))
+    || (remote.edits && editsSavedAt > sectionTime(remote.edits))
+    || (remote.filters && filtersSavedAt > sectionTime(remote.filters));
+  if (upload) await pushCloud();
+  if ((changedNotes || changedEdits || changedFilters) && !appContent.hidden) render();
+}
+
+function sectionTime(section) {
+  return Number(section && section.savedAt) || 0;
+}
+
+function isHomeShortcut() {
+  if (document.documentElement.classList.contains("in-telegram") || tg?.initData) return false;
+  const standalone = window.matchMedia("(display-mode: standalone)").matches
+    || window.matchMedia("(display-mode: fullscreen)").matches
+    || window.matchMedia("(display-mode: minimal-ui)").matches
+    || window.navigator.standalone === true;
+  return standalone;
+}
+
+function needsLinkCode() {
+  return Boolean(syncUrl()) && isHomeShortcut() && !deviceToken();
+}
+
+function syncCloudPanel() {
+  const url = syncUrl();
+  const linked = Boolean(tg?.initData || deviceToken());
+  settingsLink.hidden = !url || linked || !isHomeShortcut();
+  if (!url) {
+    syncStatus.textContent = "Облако ещё не подключено.";
+    return;
+  }
+  if (linked) {
+    syncStatus.textContent = "Группа, настройки, заметки и свои занятия хранятся в облаке и совпадают с Telegram.";
+    return;
+  }
+  syncStatus.textContent = isHomeShortcut()
+    ? "Ярлык ещё не связан с Telegram. Введите код, если нажали «Позже»."
+    : "Код для ярлыка смотрите в пункте 3 окна «Скачать приложение».";
+}
+
+async function requestSyncCode() {
+  const url = syncUrl();
+  const headers = cloudAuthHeaders();
+  syncCode.hidden = true;
+  if (!url || !headers) {
+    installCodeStatus.textContent = "Код можно получить только внутри Telegram.";
+    return;
+  }
+  try {
+    const response = await fetch(`${url}/v1/code`, { method: "POST", headers });
+    if (!response.ok) {
+      installCodeStatus.textContent = "Не удалось получить код. Откройте мини-приложение заново.";
+      return;
+    }
+    const data = await response.json();
+    syncCode.textContent = String(data.code || "");
+    syncCode.hidden = !syncCode.textContent;
+    installCodeStatus.textContent = "Введите этот код в ярлыке. Он действует 10 минут.";
+  } catch (error) {
+    installCodeStatus.textContent = "Нет связи с облаком.";
+  }
+}
+
+async function linkSyncDevice(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector(".link-result");
+  const input = form.querySelector("input");
+  const url = syncUrl();
+  const code = input.value.replace(/\D/g, "");
+  if (!url || code.length !== 6) {
+    status.textContent = "Нужен код из шести цифр.";
+    return;
+  }
+  try {
+    const response = await fetch(`${url}/v1/link`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code })
+    });
+    if (!response.ok) {
+      status.textContent = "Код не подошёл или уже истёк. Возьмите новый в Telegram.";
+      return;
+    }
+    const data = await response.json();
+    localStorage.setItem(SYNC_DEVICE, data.token);
+    location.reload();
+  } catch (error) {
+    status.textContent = "Нет связи с облаком.";
+  }
+}
+
+function skipLink() {
+  linkGate = false;
+  document.documentElement.classList.remove("need-link");
+  hideOverlay(linkDialog, () => {
+    if (state.warnOnOpen) {
+      showOverlay(notice);
+      noticeButton.focus({ preventScroll: true });
+    }
+    if (entryReady) entryReady();
+  });
 }
 
 /**
@@ -682,7 +939,7 @@ function saveState() {
  * Подгруппа скрывает чужие подгруппы. Занятие без подгруппы остаётся: оно общее.
  */
 function addedForView() {
-  if (state.teacher !== "all") return addedLessons.filter((lesson) => !lesson.group && lesson.teacher === state.teacher);
+  if (state.teacher !== "all") return addedLessons.filter((lesson) => !lesson.group && teacherNames(lesson.teacher).includes(state.teacher));
   return addedLessons.filter((lesson) => lesson.group === state.group);
 }
 
@@ -774,18 +1031,28 @@ function lessonIsPast(lesson, today, nowMinutes) {
   return Boolean(span) && nowMinutes >= span[1];
 }
 
+/* «А/Б» — два преподавателя на одном занятии. В карточке строка остаётся целиком. */
+function teacherNames(value) {
+  const text = value == null ? "" : String(value).trim();
+  if (!text) return [];
+  return text.split("/").map((part) => part.trim()).filter(Boolean);
+}
+
 function indexByTeacher(byGroup) {
   const byTeacher = new Map();
   for (const lessons of byGroup.values()) {
     for (const lesson of lessons) {
-      const name = lesson.teacher == null ? "" : String(lesson.teacher).trim();
-      if (!name) continue;
-      let bucket = byTeacher.get(name);
-      if (!bucket) {
-        bucket = [];
-        byTeacher.set(name, bucket);
+      const seen = new Set();
+      for (const name of teacherNames(lesson.teacher)) {
+        if (seen.has(name)) continue;
+        seen.add(name);
+        let bucket = byTeacher.get(name);
+        if (!bucket) {
+          bucket = [];
+          byTeacher.set(name, bucket);
+        }
+        bucket.push(lesson);
       }
-      bucket.push(lesson);
     }
   }
   for (const bucket of byTeacher.values()) bucket.sort(compareLessons);
@@ -2200,7 +2467,7 @@ let scrollLocked = false;
 let lockedScroll = 0;
 
 function syncModal() {
-  const open = !notice.hidden || !groupPicker.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
+  const open = !notice.hidden || !groupPicker.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   if (open && !scrollLocked) {
     lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
     scrollLocked = true;
@@ -2396,6 +2663,7 @@ function closeInstall() {
 
 function openSettings() {
   syncSettingsControls();
+  syncCloudPanel();
   showOverlay(settings);
 }
 
@@ -2601,6 +2869,10 @@ function bindEvents() {
     document.documentElement.classList.toggle("no-entry-warn", !state.warnOnOpen);
     saveState();
   });
+  syncCodeButton.addEventListener("click", requestSyncCode);
+  linkForm.addEventListener("submit", linkSyncDevice);
+  settingsLink.addEventListener("submit", linkSyncDevice);
+  linkSkip.addEventListener("click", skipLink);
 
   installButton.addEventListener("click", () => {
     showOverlay(installDialog);
@@ -2718,6 +2990,7 @@ function readPrefs(prefs) {
   state.showTeacher = listsSaved && prefs.showTeacher === true;
   state.showSubgroup = prefs.subgroupMenu === 3 ? prefs.showSubgroup === true : true;
   state.warnOnOpen = prefs.warnOnOpen !== false;
+  filtersSavedAt = Number(prefs.savedAt) || filtersSavedAt;
   const colors = prefs.colors && typeof prefs.colors === "object" ? prefs.colors : {};
   for (const key of ["practice", "theory", "split"]) {
     state.colors[key] = /^#[0-9a-fA-F]{6}$/.test(colors[key] || "") ? colors[key] : "";
@@ -2748,7 +3021,13 @@ async function init() {
   }
 
   noticeButton.addEventListener("click", closeNotice);
-  if (!state.warnOnOpen) {
+  linkGate = needsLinkCode();
+  if (linkGate) {
+    notice.hidden = true;
+    document.documentElement.classList.remove("no-entry-warn");
+    showOverlay(linkDialog);
+    linkCodeInput.focus({ preventScroll: true });
+  } else if (!state.warnOnOpen) {
     notice.hidden = true;
     document.documentElement.classList.remove("no-entry-warn");
     syncModal();
@@ -2792,30 +3071,35 @@ async function init() {
     teachers = [...new Set([...theoryByTeacher.keys(), ...practiceByTeacher.keys()])].sort((a, b) => a.localeCompare(b, "ru"));
     for (const name of teachers) teacherSelect.add(new Option(name, name));
     setPickerRole("student");
-    state.teacher = teachers.includes(prefs.teacher) ? prefs.teacher : "all";
+    await pullCloud();
+    const stored = loadPrefs();
+    state.teacher = teachers.includes(stored.teacher) ? stored.teacher : "all";
     teacherSelect.value = state.teacher;
     loader.hidden = true;
 
-    const returning = prefs.pickerReset === 2 && (groups.includes(prefs.group) || state.teacher !== "all");
-    if (returning) {
-      if (groups.includes(prefs.group)) {
-        state.group = prefs.group;
-        groupSelect.value = state.group;
+    const returning = stored.pickerReset === 2 && (groups.includes(stored.group) || state.teacher !== "all");
+    entryReady = () => {
+      if (linkGate) return;
+      if (returning) {
+        if (groups.includes(stored.group)) {
+          state.group = stored.group;
+          groupSelect.value = state.group;
+        }
+        syncSubgroupOptions();
+        syncFilterVisibility();
+        saveState();
+        setToday();
+        appContent.hidden = false;
+        render();
+        return;
       }
-      syncSubgroupOptions();
-      syncFilterVisibility();
-      saveState();
-      setToday();
-      appContent.hidden = false;
-      render();
-      return;
-    }
-
-    awaitingGroup = true;
-    if (notice.hidden) {
-      showOverlay(groupPicker);
-      groupSearch.focus({ preventScroll: true });
-    }
+      awaitingGroup = true;
+      if (notice.hidden) {
+        showOverlay(groupPicker);
+        groupSearch.focus({ preventScroll: true });
+      }
+    };
+    entryReady();
   } catch (error) {
     showFatal("Не удалось загрузить расписание. Откройте страницу через GitHub Pages или локальный сервер, а не как файл с диска.");
   }

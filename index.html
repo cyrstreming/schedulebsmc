@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f6fb">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Расписание">
+  <meta name="sync-url" content="https://schedulebsmc.schedulebsmc.workers.dev">
   <title>Расписание занятий</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png" type="image/png">
@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=34">
+  <link rel="stylesheet" href="styles.css?v=37">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -27,6 +27,18 @@
       var tg = window.Telegram && window.Telegram.WebApp;
       if (tg && ((tg.initData && tg.initData.length) || (tg.platform && tg.platform !== "unknown"))) {
         document.documentElement.classList.add("in-telegram");
+      }
+      var shortcut = false;
+      try {
+        shortcut = window.matchMedia("(display-mode: standalone)").matches
+          || window.matchMedia("(display-mode: fullscreen)").matches
+          || window.matchMedia("(display-mode: minimal-ui)").matches
+          || window.navigator.standalone === true;
+      } catch (error) { shortcut = false; }
+      var linked = false;
+      try { linked = !!localStorage.getItem("college-schedule-device"); } catch (error) { linked = false; }
+      if (shortcut && !document.documentElement.classList.contains("in-telegram") && !linked) {
+        document.documentElement.classList.add("need-link");
       }
       try {
         var systemDark = tg && tg.colorScheme
@@ -173,6 +185,20 @@
     </div>
   </div>
 
+  <div class="overlay link-overlay" id="linkDialog" role="dialog" aria-modal="true" aria-labelledby="linkTitle" hidden>
+    <div class="modal">
+      <h2 id="linkTitle">Введите код</h2>
+      <p class="hint">Код синхронизирует Telegram и этот ярлык. Телефон иногда сам стирает данные ярлыка, и без кода всё, что вы здесь изменили, может сразу пропасть.</p>
+      <p class="hint">Код смотрите в Telegram: откройте расписание, нажмите «Скачать приложение» и в пункте 3 нажмите «Получить код». Он действует 10 минут.</p>
+      <form id="linkForm" class="sync-device">
+        <label class="field"><span>Код из Telegram</span><input id="linkCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 цифр"></label>
+        <button type="submit" class="btn btn-primary">Продолжить</button>
+        <p class="hint link-result" id="linkStatus"></p>
+      </form>
+      <button type="button" class="btn btn-quiet" id="linkSkip">Позже</button>
+    </div>
+  </div>
+
   <div class="overlay notice-overlay" id="notice" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
     <div class="modal">
       <h2 id="noticeTitle">Расписание может быть неточным</h2>
@@ -230,6 +256,15 @@
 
       <p class="field-label">При входе</p>
       <label class="check-row"><span>Предупреждение о неточности</span><span class="switch"><input type="checkbox" id="warnOnOpen"><span></span></span></label>
+
+      <p class="field-label">Сохранение</p>
+      <p class="hint" id="syncStatus"></p>
+      <form id="settingsLink" class="sync-device" hidden>
+        <label class="field"><span>Код из Telegram</span><input id="settingsCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 цифр"></label>
+        <p class="hint">Тот же код, что в Telegram: «Скачать приложение», пункт 3, «Получить код».</p>
+        <button type="submit" class="btn btn-quiet">Ввести код</button>
+        <p class="hint link-result" id="settingsLinkStatus"></p>
+      </form>
 
       <p class="field-label">Цвета занятий</p>
       <div class="color-grid">
@@ -437,10 +472,16 @@
       <ol class="install-steps">
         <li>Перейти на <a id="installSite" href="https://cyrstreming.github.io/schedulebsmc/">сайт</a> приложения. Открывать его нужно в браузере смартфона, не внутри Telegram.</li>
         <li>Добавьте ярлык на рабочий стол. На Android в Chrome нажмите меню браузера (три точки) и выберите «Добавить на главный экран» или «Установить приложение». На iPhone в Safari нажмите «Поделиться» и выберите «На экран Домой».</li>
+        <li>
+          Нажмите «Получить код». Откройте ярлык и введите эти 6 цифр в первом окне. Ярлык сразу откроет вашу группу, заметки и настройки, группу заново искать не нужно. Код действует 10 минут.
+          <button type="button" class="btn btn-quiet" id="syncCodeButton">Получить код</button>
+          <p class="sync-code" id="syncCode" hidden></p>
+          <p class="hint" id="installCodeStatus"></p>
+        </li>
       </ol>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=37"></script>
+  <script type="module" src="app.js?v=41"></script>
 </body>
 </html>

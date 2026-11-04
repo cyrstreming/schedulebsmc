@@ -1161,6 +1161,22 @@ html:not(.in-telegram) .btn-install { display: none; }
   outline-offset: 2px;
 }
 
+.sync-code {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.sync-device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-device .btn { margin-top: 0; }
+
 html.no-entry-warn #notice { display: none !important; }
 
 .color-grid input[type="color"] {
@@ -1197,6 +1213,20 @@ html.no-entry-warn #notice { display: none !important; }
   color: var(--accent);
   font-weight: 800;
 }
+
+.install-steps .btn,
+.install-steps .hint,
+.install-steps .sync-code { margin-top: 8px; }
+
+.install-steps li:last-child {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.link-overlay { z-index: 45; }
+
+html.need-link #notice { display: none !important; }
 
 .settings-overlay,
 .install-overlay { z-index: 36; }
