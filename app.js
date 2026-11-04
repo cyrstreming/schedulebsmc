@@ -2048,7 +2048,7 @@ function roomRow(lesson) {
   const room = document.createElement("span");
   room.textContent = displayText(lesson.room, "Не указана");
   description.append(room);
-  if (!lesson.added) {
+  if (!lesson.added && displayText(lesson.room, "")) {
     const note = document.createElement("span");
     note.className = "room-note";
     note.textContent = "Кабинет может не соответствовать расписанию";

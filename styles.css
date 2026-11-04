@@ -1226,6 +1226,11 @@ html.no-entry-warn #notice { display: none !important; }
 
 .link-overlay { z-index: 45; }
 
+.link-overlay a {
+  color: var(--accent);
+  font-weight: 800;
+}
+
 html.need-link #notice { display: none !important; }
 
 .settings-overlay,

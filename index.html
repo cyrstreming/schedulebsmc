@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=37">
+  <link rel="stylesheet" href="styles.css?v=38">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -190,6 +190,7 @@
       <h2 id="linkTitle">Введите код</h2>
       <p class="hint">Код синхронизирует Telegram и этот ярлык. Телефон иногда сам стирает данные ярлыка, и без кода всё, что вы здесь изменили, может сразу пропасть.</p>
       <p class="hint">Код смотрите в Telegram: откройте расписание, нажмите «Скачать приложение» и в пункте 3 нажмите «Получить код». Он действует 10 минут.</p>
+      <p class="hint"><a id="linkTelegram" href="https://t.me/schedulebsmcbot?startapp" target="_blank" rel="noopener">Открыть приложение в Telegram</a></p>
       <form id="linkForm" class="sync-device">
         <label class="field"><span>Код из Telegram</span><input id="linkCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 цифр"></label>
         <button type="submit" class="btn btn-primary">Продолжить</button>
@@ -482,6 +483,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=41"></script>
+  <script type="module" src="app.js?v=42"></script>
 </body>
 </html>
