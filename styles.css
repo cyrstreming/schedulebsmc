@@ -1017,6 +1017,14 @@ html:not(.in-telegram) .btn-install { display: none; }
   text-align: center;
 }
 
+.app-version {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .role-switch,
 .choice-row {
   display: grid;

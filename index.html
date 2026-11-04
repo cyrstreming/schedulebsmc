@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=40">
+  <link rel="stylesheet" href="styles.css?v=41">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -179,6 +179,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
+      <p class="app-version" id="appVersion">Версия: 1.43.41</p>
     </div>
   </div>
 
@@ -500,5 +501,18 @@
   </div>
 
   <script type="module" src="app.js?v=43"></script>
+  <script>
+    (function () {
+      function fileVersion(url) {
+        var match = String(url || "").match(/[?&]v=(\d+)/);
+        return match ? match[1] : "0";
+      }
+      var style = document.querySelector('link[rel="stylesheet"][href*="styles.css?v="]');
+      var script = document.querySelector('script[src^="app.js"], script[src*="/app.js"]');
+      var node = document.getElementById("appVersion");
+      if (!node) return;
+      node.textContent = "Версия: 1." + fileVersion(script && script.getAttribute("src")) + "." + fileVersion(style && style.getAttribute("href"));
+    })();
+  </script>
 </body>
 </html>
