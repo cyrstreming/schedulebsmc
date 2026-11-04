@@ -95,6 +95,11 @@ const weekLabel = document.querySelector("#weekLabel");
 const dayBody = document.querySelector("#dayBody");
 const results = document.querySelector(".results");
 const feedbackButton = document.querySelector("#feedbackButton");
+const feedbackDialog = document.querySelector("#feedbackDialog");
+const feedbackClose = document.querySelector("#feedbackClose");
+const feedbackForm = document.querySelector("#feedbackForm");
+const feedbackText = document.querySelector("#feedbackText");
+const feedbackStatus = document.querySelector("#feedbackStatus");
 const notice = document.querySelector("#notice");
 const noticeButton = document.querySelector("#noticeButton");
 const groupPicker = document.querySelector("#groupPicker");
@@ -194,7 +199,6 @@ const linkCodeInput = document.querySelector("#linkCodeInput");
 const linkStatus = document.querySelector("#linkStatus");
 const linkSkip = document.querySelector("#linkSkip");
 const settingsLink = document.querySelector("#settingsLink");
-const CONTACT_URL = "https://t.me/cyrstreming";
 
 function formatISO(date) {
   const year = date.getFullYear();
@@ -2467,7 +2471,7 @@ let scrollLocked = false;
 let lockedScroll = 0;
 
 function syncModal() {
-  const open = !notice.hidden || !groupPicker.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
+  const open = !notice.hidden || !groupPicker.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   if (open && !scrollLocked) {
     lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
     scrollLocked = true;
@@ -2667,6 +2671,45 @@ function openSettings() {
   showOverlay(settings);
 }
 
+function closeFeedback() {
+  hideOverlay(feedbackDialog);
+}
+
+function openFeedback() {
+  feedbackStatus.textContent = "";
+  showOverlay(feedbackDialog);
+  feedbackText.focus({ preventScroll: true });
+}
+
+async function sendFeedback(event) {
+  event.preventDefault();
+  const text = feedbackText.value.trim();
+  const url = syncUrl();
+  if (!text) {
+    feedbackStatus.textContent = "Напишите сообщение.";
+    return;
+  }
+  if (!url) {
+    feedbackStatus.textContent = "Сейчас отправить не получится.";
+    return;
+  }
+  try {
+    const response = await fetch(`${url}/v1/feedback`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+    if (!response.ok) {
+      feedbackStatus.textContent = "Не удалось отправить. Попробуйте ещё раз.";
+      return;
+    }
+    feedbackText.value = "";
+    feedbackStatus.textContent = "Сообщение отправлено.";
+  } catch (error) {
+    feedbackStatus.textContent = "Нет связи с облаком.";
+  }
+}
+
 function setThemeChoice(theme) {
   state.theme = theme;
   applyTheme(resolvedScheme());
@@ -2685,13 +2728,6 @@ function setKindColor(key, value) {
   state.colors[key] = value.toLowerCase() === DEFAULT_COLORS[key] ? "" : value;
   applyColors();
   saveState();
-}
-
-/** В Telegram открывает чат внутри приложения. В обычном браузере срабатывает ссылка. */
-function openFeedbackChat(event) {
-  if (!tg || typeof tg.openTelegramLink !== "function") return;
-  event.preventDefault();
-  tg.openTelegramLink(CONTACT_URL);
 }
 
 /**
@@ -2884,7 +2920,9 @@ function bindEvents() {
     tg.openLink(installSite.href);
   });
 
-  feedbackButton.addEventListener("click", openFeedbackChat);
+  feedbackButton.addEventListener("click", openFeedback);
+  feedbackClose.addEventListener("click", closeFeedback);
+  feedbackForm.addEventListener("submit", sendFeedback);
   dayBody.addEventListener("click", (event) => {
     const edit = event.target.closest("[data-edit]");
     if (edit) {
@@ -2942,6 +2980,7 @@ function bindEvents() {
   closeOnBackdrop(notice, closeNotice);
   closeOnBackdrop(settings, closeSettings);
   closeOnBackdrop(installDialog, closeInstall);
+  closeOnBackdrop(feedbackDialog, closeFeedback);
   closeOnBackdrop(addDialog, closeAdd);
   closeOnBackdrop(editDialog, closeEdit);
   closeOnBackdrop(deleteDialog, closeDelete);
