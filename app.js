@@ -8,6 +8,10 @@
 const STORAGE_KEY = "college-schedule-filters";
 const NOTES_KEY = "college-schedule-notes";
 const DEVICE_KEY = "college-schedule-device";
+const SEEN_KEY = "college-schedule-seen";
+const FEEDBACK_AT_KEY = "college-schedule-feedback-at";
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+const FEEDBACK_GAP_MS = 10 * 60 * 1000;
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 const WEEKDAYS = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
@@ -41,9 +45,11 @@ const state = {
   theme: "system",
   look: "standard",
   colors: { practice: "", theory: "", split: "" },
-  showGroup: false,
+  showGroup: true,
   showTeacher: false,
   showSubgroup: true,
+  blockOrder: "schedule",
+  weekView: false,
   warnOnOpen: true,
   year: 0,
   month: 0,
@@ -85,6 +91,9 @@ let calendarGrid = document.querySelector("#calendarGrid");
 let calendarNext = document.querySelector("#calendarNext");
 const dayTitle = document.querySelector("#dayTitle");
 const dayCount = document.querySelector("#dayCount");
+const weekButton = document.querySelector("#weekButton");
+const dayTools = document.querySelector(".day-tools");
+const WEEK_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const lessonsBox = document.querySelector("#lessons");
 const emptyBox = document.querySelector("#empty");
 const countdown = document.querySelector("#countdown");
@@ -186,6 +195,7 @@ const colorTheory = document.querySelector("#colorTheory");
 const colorSplit = document.querySelector("#colorSplit");
 const colorReset = document.querySelector("#colorReset");
 const showGroup = document.querySelector("#showGroup");
+const orderChoices = document.querySelector("#orderChoices");
 const showTeacher = document.querySelector("#showTeacher");
 const showSubgroup = document.querySelector("#showSubgroup");
 const warnOnOpen = document.querySelector("#warnOnOpen");
@@ -199,6 +209,23 @@ const linkCodeInput = document.querySelector("#linkCodeInput");
 const linkStatus = document.querySelector("#linkStatus");
 const linkSkip = document.querySelector("#linkSkip");
 const settingsLink = document.querySelector("#settingsLink");
+const saveSettings = document.querySelector("#saveSettings");
+
+function historyCutoff() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit"
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === "year").value);
+  const month = Number(parts.find((part) => part.type === "month").value);
+  const previous = new Date(Date.UTC(year, month - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function historyLocked(iso) {
+  return Boolean(iso) && iso < historyCutoff();
+}
 
 function formatISO(date) {
   const year = date.getFullYear();
@@ -684,13 +711,14 @@ function saveState() {
     showGroup: state.showGroup,
     showTeacher: state.showTeacher,
     showSubgroup: state.showSubgroup,
+    blockOrder: state.blockOrder,
     warnOnOpen: state.warnOnOpen,
     subgroupMenu: 3,
-    listsDefault: 2,
+    listsDefault: 4,
     pickerReset: 2
   };
   const previous = loadPrefs();
-  const same = ["group", "subgroup", "teacher", "theme", "look", "showGroup", "showTeacher", "showSubgroup", "warnOnOpen", "subgroupMenu", "listsDefault", "pickerReset"]
+  const same = ["group", "subgroup", "teacher", "theme", "look", "showGroup", "showTeacher", "showSubgroup", "blockOrder", "warnOnOpen", "subgroupMenu", "listsDefault", "pickerReset"]
     .every((key) => JSON.stringify(previous[key]) === JSON.stringify(next[key]))
     && JSON.stringify(previous.colors || {}) === JSON.stringify(next.colors);
   if (!same) filtersSavedAt = Date.now();
@@ -738,9 +766,10 @@ function cloudSnapshot() {
       showGroup: state.showGroup,
       showTeacher: state.showTeacher,
       showSubgroup: state.showSubgroup,
+      blockOrder: state.blockOrder,
       warnOnOpen: state.warnOnOpen,
       subgroupMenu: 3,
-      listsDefault: 2,
+      listsDefault: 4,
       pickerReset: 2
     },
     notes: { savedAt: notesSavedAt, items: notes },
@@ -797,6 +826,7 @@ function applyCloudFilters(remote) {
   if (groups.includes(remote.group)) state.group = remote.group;
   if (remote.teacher === "all" || teachers.includes(remote.teacher)) state.teacher = remote.teacher;
   readPrefs(remote);
+  if (state.teacher !== "all") state.subgroup = "all";
   filtersSavedAt = Number(remote.savedAt) || 0;
   if (state.group) groupSelect.value = state.group;
   teacherSelect.value = teachers.includes(state.teacher) ? state.teacher : "all";
@@ -817,15 +847,27 @@ function applyCloudFilters(remote) {
 async function pullCloud() {
   const url = syncUrl();
   const headers = cloudAuthHeaders();
-  if (!url || !headers) return;
+  if (!url || !headers) {
+    dropOldHistory();
+    return;
+  }
   let remote = null;
   try {
     const response = await fetch(`${url}/v1/state`, { headers });
-    if (!response.ok) return;
+    if (!response.ok) {
+      if (response.status === 401 && seenIsStale()) forgetPersonal();
+      return;
+    }
     remote = await response.json();
   } catch (error) {
+    dropOldHistory();
     return;
   }
+  if (remote.expired || (seenIsStale() && !(Number(remote.lastSeen) > Date.now() - MONTH_MS))) {
+    forgetPersonal();
+    return;
+  }
+  rememberSeen(remote.lastSeen || (tg?.initData ? Date.now() : 0));
   const changedNotes = applyCloudNotes(remote.notes);
   const changedEdits = applyCloudEdits(remote.edits);
   const changedFilters = applyCloudFilters(remote.filters);
@@ -833,6 +875,7 @@ async function pullCloud() {
     || (remote.notes && notesSavedAt > sectionTime(remote.notes))
     || (remote.edits && editsSavedAt > sectionTime(remote.edits))
     || (remote.filters && filtersSavedAt > sectionTime(remote.filters));
+  dropOldHistory();
   if (upload) await pushCloud();
   if ((changedNotes || changedEdits || changedFilters) && !appContent.hidden) render();
 }
@@ -854,21 +897,80 @@ function needsLinkCode() {
   return Boolean(syncUrl()) && isHomeShortcut() && !deviceToken();
 }
 
+function seenIsStale() {
+  const seen = Number(localStorage.getItem(SEEN_KEY)) || 0;
+  return seen > 0 && Date.now() - seen > MONTH_MS;
+}
+
+function rememberSeen(value) {
+  const seen = Number(value) || 0;
+  if (seen > 0) localStorage.setItem(SEEN_KEY, String(seen));
+}
+
+function forgetPersonal() {
+  replaceNotes({});
+  notesSavedAt = Date.now();
+  replaceEdits({}, []);
+  editsSavedAt = Date.now();
+  filtersSavedAt = 0;
+  state.group = "";
+  state.teacher = "all";
+  state.subgroup = "all";
+  try {
+    localStorage.setItem(NOTES_KEY, notesPayload());
+    localStorage.setItem(EDITS_KEY, editsPayload());
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SYNC_DEVICE);
+    localStorage.removeItem(SEEN_KEY);
+  } catch (error) { /* хранилище может быть запрещено */ }
+}
+
+function dropOldHistory() {
+  const cutoff = historyCutoff();
+  let notesChanged = false;
+  for (const key of Object.keys(notes)) {
+    const date = key.slice(0, 10);
+    if (DATE_RE.test(date) && date < cutoff) {
+      delete notes[key];
+      notesChanged = true;
+    }
+  }
+  let editsChanged = false;
+  for (let index = addedLessons.length - 1; index >= 0; index -= 1) {
+    if (addedLessons[index].date < cutoff) {
+      delete edits[addedLessons[index].id];
+      addedLessons.splice(index, 1);
+      editsChanged = true;
+    }
+  }
+  for (const key of Object.keys(edits)) {
+    const date = key.slice(0, 10);
+    if (DATE_RE.test(date) && date < cutoff) {
+      delete edits[key];
+      editsChanged = true;
+    }
+  }
+  if (notesChanged) saveNotes();
+  if (editsChanged) saveEdits();
+}
+
 function syncCloudPanel() {
   const url = syncUrl();
-  const linked = Boolean(tg?.initData || deviceToken());
+  const linked = Boolean(deviceToken());
+  saveSettings.hidden = false;
   settingsLink.hidden = !url || linked || !isHomeShortcut();
   if (!url) {
+    syncStatus.hidden = false;
     syncStatus.textContent = "Облако ещё не подключено.";
     return;
   }
-  if (linked) {
-    syncStatus.textContent = "Группа, настройки, заметки и свои занятия хранятся в облаке и совпадают с Telegram.";
+  if (isHomeShortcut() && !linked) {
+    syncStatus.hidden = false;
+    syncStatus.textContent = "Код для ярлыка смотрите в пункте 3 окна «Скачать приложение».";
     return;
   }
-  syncStatus.textContent = isHomeShortcut()
-    ? "Ярлык ещё не связан с Telegram. Введите код, если нажали «Позже»."
-    : "Код для ярлыка смотрите в пункте 3 окна «Скачать приложение».";
+  syncStatus.hidden = true;
+  syncStatus.textContent = "";
 }
 
 async function requestSyncCode() {
@@ -1109,19 +1211,9 @@ function formatAhead(mins) {
   return hours ? `${daysText} ${hours} ${plural(hours, "час", "часа", "часов")}` : daysText;
 }
 
-function lessonClockKind(lesson) {
-  return lesson.kind === "practice" ? "practice" : "theory";
-}
-
-function countdownName(kind) {
-  if (kind === "practice") return "практики";
-  if (kind === "both") return "занятия";
-  return "теории";
-}
-
 /**
- * Ближайшее занятие с часами: пара теории или смена практики.
- * Текст называет тип этого занятия. Если до него больше 15 часов, строка скрыта.
+ * Ближайшее занятие с часами.
+ * Если до него больше 15 часов, строка скрыта.
  * Красный — до начала 30 минут и меньше. Зелёный — до конца 10 минут и меньше.
  */
 function refreshPastLessons() {
@@ -1129,16 +1221,20 @@ function refreshPastLessons() {
   const today = formatISO(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   for (const article of lessonsBox.querySelectorAll(".lesson")) {
+    const hasTime = article.dataset.start != null && article.dataset.end != null;
+    const start = Number(article.dataset.start);
     const end = Number(article.dataset.end);
     const date = article.dataset.date || "";
-    const past = date < today || (date === today && end > 0 && nowMinutes >= end);
-    article.classList.toggle("is-past", past);
+    const current = hasTime && date === today && nowMinutes >= start && nowMinutes < end;
+    const past = date < today || (hasTime && date === today && nowMinutes >= end);
+    article.classList.toggle("is-now", current);
+    article.classList.toggle("is-past", past && !current);
   }
 }
 
 /**
- * Ближайшее занятие с часами: пара теории или смена практики.
- * Текст называет тип этого занятия. Если до него больше 15 часов, строка скрыта.
+ * Ближайшее занятие с часами.
+ * Если до него больше 15 часов, строка скрыта.
  * Красный — до начала 30 минут и меньше. Зелёный — до конца 10 минут и меньше.
  * Ползунок есть только у текущей пары: к концу он доходит до правого края.
  */
@@ -1153,16 +1249,16 @@ function renderCountdown() {
   for (const lesson of filteredLessons()) {
     const span = lessonMinutes(lesson);
     if (!span) continue;
-    const kind = lessonClockKind(lesson);
+    const brief = lessonBrief(lesson);
     if (lesson.date === today && nowMinutes >= span[0] && nowMinutes < span[1]) {
       const left = span[1] - nowMinutes;
-      if (!current || left < current.left) current = { left, kind, start: span[0], end: span[1] };
-      else if (left === current.left && kind !== current.kind) current.kind = "both";
+      if (!current || left < current.left) current = { left, start: span[0], end: span[1], briefs: [brief] };
+      else if (left === current.left && !current.briefs.includes(brief)) current.briefs.push(brief);
     } else {
       const until = minutesFromNow(lesson.date, span[0], today, nowMinutes);
       if (until <= 0) continue;
-      if (!next || until < next.until) next = { until, kind };
-      else if (until === next.until && kind !== next.kind) next.kind = "both";
+      if (!next || until < next.until) next = { until, briefs: [brief] };
+      else if (until === next.until && !next.briefs.includes(brief)) next.briefs.push(brief);
     }
   }
 
@@ -1171,7 +1267,7 @@ function renderCountdown() {
   if (current) {
     countdown.hidden = false;
     countdown.className = `countdown${current.left <= 10 ? " is-ending" : ""}`;
-    countdownText.textContent = `До конца ${countdownName(current.kind)} ${formatAhead(current.left)}`;
+    fillCountdown(`До конца занятия ${formatAhead(current.left)}`, current.briefs);
     const progress = (nowSeconds - current.start * 60) / ((current.end - current.start) * 60);
     timeTrack.hidden = false;
     timeFill.style.width = `${Math.min(100, Math.max(0, progress * 100))}%`;
@@ -1182,11 +1278,11 @@ function renderCountdown() {
   if (next && next.until <= 15 * 60) {
     countdown.hidden = false;
     countdown.className = `countdown${next.until <= 30 ? " is-soon" : ""}`;
-    countdownText.textContent = `До начала ${countdownName(next.kind)} ${formatAhead(next.until)}`;
+    fillCountdown(`До начала занятия ${formatAhead(next.until)}`, next.briefs);
     return;
   }
   countdown.hidden = true;
-  countdownText.textContent = "";
+  countdownText.replaceChildren();
   countdown.className = "countdown";
 }
 
@@ -1234,11 +1330,66 @@ function renderTeacherNow() {
   teacherNow.textContent = "Сегодня у этого преподавателя занятий нет";
 }
 
+function lessonBrief(lesson) {
+  const subject = displayText(lesson.subject, "Занятие");
+  const time = lesson.time ? formatTime(lesson.time) : "";
+  return time ? `${subject}, ${time}` : subject;
+}
+
+function fillCountdown(title, briefs) {
+  countdownText.replaceChildren();
+  const line = document.createElement("span");
+  line.textContent = title;
+  const detail = document.createElement("span");
+  detail.className = "countdown-lesson";
+  detail.textContent = briefs.join(" · ");
+  countdownText.append(line, detail);
+}
+
 function setToday() {
   const now = new Date();
   state.year = now.getFullYear();
   state.month = now.getMonth();
   state.selected = formatISO(now);
+}
+
+/** Если сегодняшние занятия уже закончились, открывает следующий учебный день. */
+function openNearestDay() {
+  const now = new Date();
+  const today = formatISO(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const lessons = filteredLessons();
+  const todayOpen = lessons.some((lesson) => {
+    if (lesson.date !== today) return false;
+    const span = lessonMinutes(lesson);
+    return !span || nowMinutes < span[1];
+  });
+  const next = todayOpen ? null : lessons.find((lesson) => lesson.date > today);
+  const iso = next ? next.date : today;
+  const date = parseISO(iso);
+  state.year = date.getFullYear();
+  state.month = date.getMonth();
+  state.selected = iso;
+}
+
+function mondayOf(iso) {
+  const date = parseISO(iso);
+  const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return copy;
+}
+
+function formatDaySpan(start, end) {
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${start.getDate()}–${end.getDate()} ${MONTHS_GEN[end.getMonth()]}`;
+  }
+  return `${start.getDate()} ${MONTHS_GEN[start.getMonth()]} – ${end.getDate()} ${MONTHS_GEN[end.getMonth()]}`;
+}
+
+function syncWeekButton() {
+  weekButton.textContent = state.weekView ? "Один день" : "На неделю";
+  weekButton.classList.toggle("is-on", state.weekView);
+  weekButton.setAttribute("aria-pressed", state.weekView ? "true" : "false");
 }
 
 /**
@@ -1449,6 +1600,7 @@ function unitAccusative(lesson) {
 }
 
 function lessonActions(lesson) {
+  if (historyLocked(lesson.date)) return null;
   const row = document.createElement("div");
   row.className = "lesson-actions";
   const name = unitAccusative(lesson);
@@ -1537,7 +1689,7 @@ function fillNumberOptions(lesson) {
 
 function openEdit(id) {
   const source = sourceById(id);
-  if (!source) return;
+  if (!source || historyLocked(source.date)) return;
   const view = viewLesson(source) || source;
   editingId = id;
   editTitle.textContent = `Изменить ${unitAccusative(view)}`;
@@ -1713,7 +1865,7 @@ function resetEdit() {
 
 function openDelete(id) {
   const source = sourceById(id);
-  if (!source) return;
+  if (!source || historyLocked(source.date)) return;
   const view = viewLesson(source) || source;
   editingId = id;
   deleteTitle.textContent = `Удалить ${unitAccusative(view)}`;
@@ -1761,6 +1913,13 @@ function dayIsChanged() {
 }
 
 function syncDayTools() {
+  if (historyLocked(state.selected)) {
+    addButton.hidden = true;
+    deletedButton.hidden = true;
+    resetDayButton.hidden = true;
+    return;
+  }
+  addButton.hidden = false;
   const removed = deletedOfDay();
   deletedButton.hidden = removed.length === 0;
   deletedButton.textContent = removed.length ? `Удалённые · ${removed.length}` : "Удалённые";
@@ -1903,33 +2062,63 @@ function fillAddNumber() {
   const max = practice ? 3 : 7;
   const current = addNumber.value;
   addNumber.replaceChildren();
+  addNumber.add(new Option("Пропустить", "skip"));
   for (let number = 1; number <= max; number += 1) addNumber.add(new Option(String(number), String(number)));
-  addNumber.value = current && Number(current) <= max ? current : "1";
+  if (current === "skip" || (current && Number(current) <= max)) addNumber.value = current;
+  else addNumber.value = "1";
 }
 
 function fillAddTimeOptions() {
   const table = addTimeTable();
-  const current = addTime.value || "schedule";
+  const current = addTime.value;
   addTime.replaceChildren();
-  addTime.add(new Option("Как в расписании", "schedule"));
   for (const [number, slot] of Object.entries(table)) addTime.add(new Option(slot, number));
   addTime.add(new Option("Своё время", "custom"));
-  addTime.value = [...addTime.options].some((option) => option.value === current) ? current : "schedule";
-  fillAddNumber();
+  addTime.value = [...addTime.options].some((option) => option.value === current) ? current : "1";
+}
+
+function occupiedSlotNumbers(practice) {
+  const used = new Set();
+  for (const lesson of filteredLessons()) {
+    if (lesson.date !== state.selected) continue;
+    if (practice) {
+      if (lesson.kind !== "practice") continue;
+      const number = shiftNumber(lesson.shift);
+      if (number !== 99) used.add(String(number));
+    } else if (lesson.kind !== "practice" && lesson.pair != null && lesson.pair !== "") {
+      used.add(String(lesson.pair));
+    }
+  }
+  return used;
+}
+
+function nearestFreeNumber(practice) {
+  const max = practice ? 3 : 7;
+  const used = occupiedSlotNumbers(practice);
+  for (let number = 1; number <= max; number += 1) {
+    if (!used.has(String(number))) return String(number);
+  }
+  return "1";
+}
+
+function applyNearestFreeSlot() {
+  const number = nearestFreeNumber(addKind.value === "practice");
+  addNumber.value = number;
+  if (addTimeTable()[number]) addTime.value = number;
   syncAddTimeFields();
 }
 
 function syncAddTimeFields() {
-  const mode = addTime.value;
-  addNumberField.hidden = mode !== "schedule";
-  addTimeTextField.hidden = mode !== "custom";
-  addSlotHint.hidden = mode !== "schedule";
-  if (mode === "schedule") addSlotHint.textContent = addTimeTable()[addNumber.value] || "";
+  addNumberField.hidden = false;
+  addTimeTextField.hidden = addTime.value !== "custom";
+  addSlotHint.hidden = true;
 }
 
 function syncAddKind() {
   addSubgroupField.hidden = addKind.value !== "split";
   fillAddTimeOptions();
+  fillAddNumber();
+  applyNearestFreeSlot();
   fillAddSubjects();
   syncAddSubjectMode();
 }
@@ -1950,7 +2139,7 @@ function fillAddSubjects() {
 }
 
 function openAdd() {
-  if (!state.selected || (!state.group && state.teacher === "all")) return;
+  if (!state.selected || historyLocked(state.selected) || (!state.group && state.teacher === "all")) return;
   addCustomSubject = false;
   const practiceDay = sourceLessons().some((lesson) => {
     if (lesson.date !== state.selected) return false;
@@ -1962,12 +2151,7 @@ function openAdd() {
   addRoom.value = "";
   addSubjectText.value = "";
   addTimeText.value = "";
-  addNumber.value = "1";
-  fillAddSubjects();
   syncAddKind();
-  addTime.value = "schedule";
-  syncAddTimeFields();
-  syncAddSubjectMode();
   addError.hidden = true;
   showOverlay(addDialog);
   if (addCustomSubject) addSubjectText.focus({ preventScroll: true });
@@ -1982,19 +2166,10 @@ function draftAddedLesson() {
   const kind = addKind.value === "practice" || addKind.value === "split" ? addKind.value : "theory";
   const practice = kind === "practice";
   const table = practice ? SHIFT_TIMES : PAIR_TIMES;
-  const mode = addTime.value;
-  let number = "";
-  let time = "";
-  if (mode === "schedule") {
-    number = addNumber.value || "1";
-    time = table[number] || "";
-  } else if (mode === "custom") {
-    time = addTimeText.value.trim() ? formatTime(addTimeText.value.trim()) : "";
-    number = slotNumber(table, time);
-  } else {
-    number = mode;
-    time = table[number] || "";
-  }
+  const number = addNumber.value === "skip" ? "" : (addNumber.value || "");
+  const time = addTime.value === "custom"
+    ? (addTimeText.value.trim() ? formatTime(addTimeText.value.trim()) : "")
+    : (table[addTime.value] || "");
   const subject = (addCustomSubject ? addSubjectText.value : addSubject.value).trim();
   const subgroup = kind === "split"
     ? (addSubgroup.value || "1")
@@ -2121,6 +2296,7 @@ function progressLine(progress) {
 }
 
 function noteField(lesson, chips) {
+  if (historyLocked(lesson.date)) return null;
   const key = lesson.id || noteKey(lesson);
   const wrap = document.createElement("label");
   wrap.className = "note";
@@ -2168,7 +2344,10 @@ function createLessonCard(lesson, index) {
   article.className = `lesson kind-${lesson.kind || "theory"}`;
   article.dataset.date = lesson.date;
   const span = lessonMinutes(lesson);
-  if (span) article.dataset.end = String(span[1]);
+  if (span) {
+    article.dataset.start = String(span[0]);
+    article.dataset.end = String(span[1]);
+  }
   const past = lessonIsPast(lesson, formatISO(now), now.getHours() * 60 + now.getMinutes());
   if (past) article.classList.add("is-past");
 
@@ -2244,21 +2423,20 @@ function createLessonCard(lesson, index) {
     details.append(roomRow(lesson));
   }
   inner.append(details);
-  inner.append(noteField(lesson, chips));
+  const note = noteField(lesson, chips);
+  if (note) inner.append(note);
   if (chips.childElementCount && !chips.parentElement) main.append(chips);
   if (lesson.progress) inner.append(progressLine(lesson.progress));
   panel.append(inner);
   const top = document.createElement("div");
   top.className = "lesson-top";
-  top.append(head, lessonActions(lesson));
+  top.append(head);
+  const actions = lessonActions(lesson);
+  if (actions) top.append(actions);
   article.append(top, panel);
 
   head.addEventListener("click", () => {
-    // Пока список держит фиксированную высоту, раскрытая пара уезжает под календарь.
-    releaseDayHeight();
-    const open = article.classList.toggle("is-open");
-    panel.inert = !open;
-    head.setAttribute("aria-expanded", open ? "true" : "false");
+    toggleLesson(article, panel, head);
   });
 
   return article;
@@ -2268,6 +2446,68 @@ function createLessonCard(lesson, index) {
  * Высота списка анимируется, поэтому календарь под ним не прыгает,
  * когда в выбранном дне другое число пар.
  */
+/** Раскрытие пары и высота дня идут одним переходом, без скачка календаря. */
+function toggleLesson(article, panel, head) {
+  const open = !article.classList.contains("is-open");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.clearTimeout(dayBody._heightTimer);
+  if (dayBody._onHeight) {
+    dayBody.removeEventListener("transitionend", dayBody._onHeight);
+    dayBody._onHeight = null;
+  }
+  if (panel._onHeight) {
+    panel.removeEventListener("transitionend", panel._onHeight);
+    panel._onHeight = null;
+  }
+  if (reduce) {
+    article.classList.toggle("is-open", open);
+    panel.inert = !open;
+    head.setAttribute("aria-expanded", open ? "true" : "false");
+    panel.style.height = "";
+    panel.style.transition = "";
+    releaseDayHeight();
+    return;
+  }
+  const currentPanel = panel.getBoundingClientRect().height;
+  panel.style.transition = "none";
+  panel.style.height = "auto";
+  const full = panel.scrollHeight;
+  panel.style.height = `${currentPanel}px`;
+  const fromDay = dayBody.getBoundingClientRect().height;
+  article.classList.toggle("is-open", open);
+  panel.inert = !open;
+  head.setAttribute("aria-expanded", open ? "true" : "false");
+  const delta = open ? full - currentPanel : -currentPanel;
+  dayBody.style.overflow = "hidden";
+  dayBody.style.transition = "none";
+  dayBody.style.height = `${fromDay}px`;
+  void panel.offsetHeight;
+  const motion = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
+  panel.style.transition = motion;
+  dayBody.style.transition = motion;
+  panel.style.height = open ? `${full}px` : "0px";
+  dayBody.style.height = `${Math.max(0, fromDay + delta)}px`;
+  const done = (event) => {
+    if (event.propertyName !== "height") return;
+    panel.removeEventListener("transitionend", done);
+    panel._onHeight = null;
+    if (article.classList.contains("is-open")) {
+      panel.style.height = "";
+      panel.style.transition = "";
+    }
+    releaseDayHeight();
+  };
+  panel._onHeight = done;
+  panel.addEventListener("transitionend", done);
+  dayBody._heightTimer = window.setTimeout(() => {
+    if (article.classList.contains("is-open")) {
+      panel.style.height = "";
+      panel.style.transition = "";
+    }
+    releaseDayHeight();
+  }, 420);
+}
+
 function releaseDayHeight() {
   window.clearTimeout(dayBody._heightTimer);
   dayBody._heightTimer = 0;
@@ -2307,15 +2547,22 @@ function placeDayContent(fragment, isEmpty) {
 }
 
 function renderDetails() {
+  document.title = state.teacher !== "all"
+    ? `Расписание · ${state.teacher}`
+    : (state.group ? `Расписание · ${state.group}` : "Расписание занятий");
+  syncWeekButton();
+  syncDayTools();
+  dayTools.hidden = state.weekView;
+  if (state.weekView) {
+    renderWeek();
+    return;
+  }
   const dayLessons = filteredLessons().filter((lesson) => lesson.date === state.selected);
   const selectedDate = state.selected ? parseISO(state.selected) : new Date();
   dayTitle.textContent = `${WEEKDAYS[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS_GEN[selectedDate.getMonth()]}`;
   const week = state.selected ? academicWeekNumber(state.selected) : academicWeekNumber(formatISO(new Date()));
   weekLabel.textContent = `${week}-я учебная неделя`;
-  document.title = state.teacher !== "all"
-    ? `Расписание · ${state.teacher}`
-    : (state.group ? `Расписание · ${state.group}` : "Расписание занятий");
-  syncDayTools();
+  emptyBox.textContent = "На этот день занятий нет";
 
   if (!dayLessons.length) {
     dayCount.textContent = "";
@@ -2327,6 +2574,73 @@ function renderDetails() {
   const fragment = document.createDocumentFragment();
   dayLessons.forEach((lesson, index) => fragment.append(createLessonCard(lesson, index)));
   placeDayContent(fragment, false);
+}
+
+function weekStartTime(lesson) {
+  const span = lessonMinutes(lesson);
+  if (!span) return lesson.time ? formatTime(lesson.time) : "";
+  const hour = String(Math.floor(span[0] / 60)).padStart(2, "0");
+  const minute = String(span[0] % 60).padStart(2, "0");
+  return `${hour}:${minute}`;
+}
+
+function renderWeek() {
+  const monday = mondayOf(state.selected || formatISO(new Date()));
+  const saturday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 5);
+  const lessons = filteredLessons();
+  const days = [];
+  for (let offset = 0; offset < 6; offset += 1) {
+    const date = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + offset);
+    const iso = formatISO(date);
+    days.push({ date, iso, list: lessons.filter((lesson) => lesson.date === iso) });
+  }
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const sundayIso = formatISO(sunday);
+  const sundayList = lessons.filter((lesson) => lesson.date === sundayIso);
+  if (sundayList.length) days.push({ date: sunday, iso: sundayIso, list: sundayList });
+  dayTitle.textContent = formatDaySpan(monday, saturday);
+  weekLabel.textContent = `${academicWeekNumber(formatISO(monday))}-я учебная неделя`;
+  const total = days.reduce((sum, day) => sum + day.list.length, 0);
+  dayCount.textContent = total ? `${total} ${plural(total, "занятие", "занятия", "занятий")}` : "";
+  const board = document.createElement("div");
+  board.className = "week-board";
+  for (const day of days) {
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = `week-cell${day.iso === state.selected ? " is-selected" : ""}`;
+    const title = document.createElement("span");
+    title.className = "week-cell-title";
+    title.textContent = `${WEEK_SHORT[day.date.getDay()]} ${day.date.getDate()}`;
+    cell.append(title);
+    if (!day.list.length) {
+      const empty = document.createElement("span");
+      empty.className = "week-empty";
+      empty.textContent = "Нет занятий";
+      cell.append(empty);
+    } else {
+      const lines = document.createElement("span");
+      lines.className = "week-lines";
+      for (const lesson of day.list) {
+        const line = document.createElement("span");
+        line.className = "week-line";
+        const dot = document.createElement("i");
+        dot.className = `kind-${lesson.kind || "theory"}`;
+        const time = document.createElement("b");
+        time.textContent = weekStartTime(lesson);
+        const subject = document.createElement("em");
+        subject.textContent = displayText(lesson.subject, "Занятие");
+        line.append(dot, time, subject);
+        lines.append(line);
+      }
+      cell.append(lines);
+    }
+    cell.addEventListener("click", () => {
+      state.weekView = false;
+      selectDate(day.iso, true);
+    });
+    board.append(cell);
+  }
+  placeDayContent(board, false);
 }
 
 function scrollToSchedule() {
@@ -2592,7 +2906,7 @@ function finishFirstChoice() {
   appContent.hidden = false;
   syncSubgroupOptions();
   saveState();
-  setToday();
+  openNearestDay();
   syncModal();
   render();
 }
@@ -2634,11 +2948,21 @@ function setPickerRole(role) {
   fillPickerList();
 }
 
+function applyLayout() {
+  const parent = results.parentElement;
+  if (!parent) return;
+  const first = state.blockOrder === "calendar" ? calendar : results;
+  const second = state.blockOrder === "calendar" ? results : calendar;
+  if (first.nextElementSibling !== second) parent.insertBefore(first, second);
+  if (second.nextElementSibling !== feedbackButton) parent.insertBefore(second, feedbackButton);
+}
+
 function syncFilterVisibility() {
   groupField.hidden = !state.showGroup;
   teacherField.hidden = !state.showTeacher;
   subgroupField.hidden = !state.showSubgroup;
   groupField.parentElement.hidden = !state.showGroup && !state.showTeacher;
+  applyLayout();
 }
 
 function syncSettingsControls() {
@@ -2647,6 +2971,9 @@ function syncSettingsControls() {
   }
   for (const button of lookChoices.querySelectorAll("[data-look]")) {
     button.classList.toggle("is-on", button.dataset.look === state.look);
+  }
+  for (const button of orderChoices.querySelectorAll("[data-order]")) {
+    button.classList.toggle("is-on", button.dataset.order === state.blockOrder);
   }
   colorPractice.value = state.colors.practice || DEFAULT_COLORS.practice;
   colorTheory.value = state.colors.theory || DEFAULT_COLORS.theory;
@@ -2675,16 +3002,32 @@ function closeFeedback() {
   hideOverlay(feedbackDialog);
 }
 
+function feedbackWaitLeft() {
+  const last = Number(localStorage.getItem(FEEDBACK_AT_KEY)) || 0;
+  return Math.max(0, FEEDBACK_GAP_MS - (Date.now() - last));
+}
+
+function feedbackWaitText(wait) {
+  const minutes = Math.max(1, Math.ceil(wait / 60000));
+  return `Следующий отзыв можно отправить через ${minutes} ${plural(minutes, "минуту", "минуты", "минут")}.`;
+}
+
 function openFeedback() {
-  feedbackStatus.textContent = "";
+  const wait = feedbackWaitLeft();
+  feedbackStatus.textContent = wait ? feedbackWaitText(wait) : "";
   showOverlay(feedbackDialog);
-  feedbackText.focus({ preventScroll: true });
+  if (!wait) feedbackText.focus({ preventScroll: true });
 }
 
 async function sendFeedback(event) {
   event.preventDefault();
   const text = feedbackText.value.trim();
   const url = syncUrl();
+  const wait = feedbackWaitLeft();
+  if (wait) {
+    feedbackStatus.textContent = feedbackWaitText(wait);
+    return;
+  }
   if (!text) {
     feedbackStatus.textContent = "Напишите сообщение.";
     return;
@@ -2699,12 +3042,23 @@ async function sendFeedback(event) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text })
     });
+    if (response.status === 429) {
+      let retry = FEEDBACK_GAP_MS;
+      try {
+        const data = await response.json();
+        if (Number(data.retryAfter) > 0) retry = Number(data.retryAfter);
+      } catch (error) { /* остаётся полные 10 минут */ }
+      localStorage.setItem(FEEDBACK_AT_KEY, String(Date.now() - (FEEDBACK_GAP_MS - retry)));
+      feedbackStatus.textContent = feedbackWaitText(retry);
+      return;
+    }
     if (!response.ok) {
       feedbackStatus.textContent = "Не удалось отправить. Попробуйте ещё раз.";
       return;
     }
+    localStorage.setItem(FEEDBACK_AT_KEY, String(Date.now()));
     feedbackText.value = "";
-    feedbackStatus.textContent = "Сообщение отправлено.";
+    feedbackStatus.textContent = "Сообщение отправлено. Следующий отзыв можно отправить через 10 минут.";
   } catch (error) {
     feedbackStatus.textContent = "Нет связи с облаком.";
   }
@@ -2823,6 +3177,7 @@ function bindEvents() {
 
   teacherSelect.addEventListener("change", () => {
     state.teacher = teacherSelect.value;
+    if (state.teacher !== "all") state.subgroup = "all";
     syncSubgroupOptions();
     saveState();
     render();
@@ -2838,6 +3193,10 @@ function bindEvents() {
     setToday();
     render();
     scrollToSchedule();
+  });
+  weekButton.addEventListener("click", () => {
+    state.weekView = !state.weekView;
+    render();
   });
 
   prevMonth.addEventListener("click", () => shiftMonth(-1));
@@ -2875,6 +3234,14 @@ function bindEvents() {
   lookChoices.addEventListener("click", (event) => {
     const button = event.target.closest("[data-look]");
     if (button) setLookChoice(button.dataset.look);
+  });
+  orderChoices.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-order]");
+    if (!button || (button.dataset.order !== "schedule" && button.dataset.order !== "calendar")) return;
+    state.blockOrder = button.dataset.order;
+    applyLayout();
+    syncSettingsControls();
+    saveState();
   });
   colorPractice.addEventListener("input", () => setKindColor("practice", colorPractice.value));
   colorTheory.addEventListener("input", () => setKindColor("theory", colorTheory.value));
@@ -2973,9 +3340,15 @@ function bindEvents() {
   addClose.addEventListener("click", closeAdd);
   addCancel.addEventListener("click", closeAdd);
   addKind.addEventListener("change", syncAddKind);
-  addTime.addEventListener("change", syncAddTimeFields);
+  addTime.addEventListener("change", () => {
+    if (addTime.value !== "custom" && addNumber.value !== "skip" && addTimeTable()[addTime.value]) {
+      addNumber.value = addTime.value;
+    }
+    syncAddTimeFields();
+  });
   addNumber.addEventListener("change", () => {
-    if (addTime.value === "schedule") addSlotHint.textContent = addTimeTable()[addNumber.value] || "";
+    if (addNumber.value !== "skip" && addTimeTable()[addNumber.value]) addTime.value = addNumber.value;
+    syncAddTimeFields();
   });
   closeOnBackdrop(notice, closeNotice);
   closeOnBackdrop(settings, closeSettings);
@@ -3024,9 +3397,10 @@ function readPrefs(prefs) {
   }
   state.theme = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : "system";
   state.look = prefs.look === "simple" ? "simple" : "standard";
-  const listsSaved = prefs.listsDefault === 2;
-  state.showGroup = listsSaved && prefs.showGroup === true;
+  const listsSaved = prefs.listsDefault === 4 || prefs.listsDefault === 2;
+  state.showGroup = prefs.listsDefault === 4 ? prefs.showGroup === true : true;
   state.showTeacher = listsSaved && prefs.showTeacher === true;
+  state.blockOrder = prefs.blockOrder === "calendar" ? "calendar" : "schedule";
   state.showSubgroup = prefs.subgroupMenu === 3 ? prefs.showSubgroup === true : true;
   state.warnOnOpen = prefs.warnOnOpen !== false;
   filtersSavedAt = Number(prefs.savedAt) || filtersSavedAt;
@@ -3113,6 +3487,7 @@ async function init() {
     await pullCloud();
     const stored = loadPrefs();
     state.teacher = teachers.includes(stored.teacher) ? stored.teacher : "all";
+    if (state.teacher !== "all") state.subgroup = "all";
     teacherSelect.value = state.teacher;
     loader.hidden = true;
 
@@ -3127,7 +3502,7 @@ async function init() {
         syncSubgroupOptions();
         syncFilterVisibility();
         saveState();
-        setToday();
+        openNearestDay();
         appContent.hidden = false;
         render();
         return;

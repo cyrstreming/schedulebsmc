@@ -456,6 +456,104 @@ select {
   font-weight: 700;
 }
 
+.week-toggle {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.week-toggle.is-on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.week-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.week-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  min-height: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.week-cell.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.week-cell-title {
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.week-cell-title span {
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.week-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.week-line {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.week-line i {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-top: 3px;
+  border-radius: 50%;
+}
+
+.week-line i.kind-practice { background: var(--c-practice); }
+.week-line i.kind-theory { background: var(--c-theory); }
+.week-line i.kind-split { background: var(--c-split); }
+
+.week-line b,
+.week-line em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-line b {
+  flex: 0 0 auto;
+  font-weight: 750;
+}
+
+.week-line em {
+  flex: 1;
+  min-width: 0;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.week-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .day-head span {
   color: var(--muted);
   font-size: 13px;
@@ -505,6 +603,17 @@ select {
 .lesson.is-past.kind-practice { --past: var(--c-practice); }
 .lesson.is-past.kind-theory { --past: var(--c-theory); }
 .lesson.is-past.kind-split { --past: var(--c-split); }
+
+.lesson.is-now {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.lesson.is-now .subject::after {
+  content: " · сейчас";
+  color: var(--accent);
+  font-weight: 750;
+}
 
 .lesson-done {
   flex: 0 0 auto;
@@ -599,6 +708,8 @@ select {
   gap: 8px;
   margin-top: 12px;
 }
+
+.day-tools[hidden] { display: none; }
 
 .day-tools .btn {
   width: 100%;
@@ -732,17 +843,15 @@ body.theme-dark .badge-split {
 
 .lesson.is-open .chevron { transform: rotate(180deg); }
 
-/* Плавное раскрытие: внешняя строка сетки сжимается до 0fr и прячет внутренний блок. */
+/* Высоту карточки задаёт скрипт одним переходом, без скачков сетки. */
 .lesson-panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.28s ease;
+  height: 0;
+  overflow: hidden;
 }
 
-.lesson.is-open .lesson-panel { grid-template-rows: 1fr; }
+.lesson.is-open .lesson-panel { height: auto; }
 
 .lesson-panel-inner {
-  min-height: 0;
   overflow: hidden;
 }
 
@@ -848,7 +957,20 @@ body.theme-dark .badge-note {
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.countdown p { margin: 0; }
+.countdown p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.countdown-lesson {
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.countdown.is-soon .countdown-lesson,
+.countdown.is-ending .countdown-lesson { color: inherit; }
 
 .time-track {
   height: 6px;
@@ -1038,7 +1160,8 @@ html:not(.in-telegram) .btn-install { display: none; }
 
 .choice-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-#lookChoices { grid-template-columns: 1fr 1fr; }
+#lookChoices,
+#orderChoices { grid-template-columns: 1fr 1fr; }
 
 .role-switch button,
 .choice-row button {
