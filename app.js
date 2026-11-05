@@ -2990,6 +2990,7 @@ function finishFirstChoice() {
   awaitingGroup = false;
   hideOverlay(groupPicker);
   appContent.hidden = false;
+  state.showSubgroup = true;
   syncSubgroupOptions();
   syncFilterVisibility();
   saveState();
@@ -3489,7 +3490,7 @@ function readPrefs(prefs) {
   state.showGroup = prefs.listsDefault === 4 ? prefs.showGroup === true : true;
   state.showTeacher = listsSaved && prefs.showTeacher === true;
   state.blockOrder = prefs.blockOrder === "calendar" ? "calendar" : "schedule";
-  state.showSubgroup = prefs.subgroupMenu === 3 ? prefs.showSubgroup === true : true;
+  if (typeof prefs.showSubgroup === "boolean") state.showSubgroup = prefs.showSubgroup;
   state.warnOnOpen = prefs.warnOnOpen !== false;
   filtersSavedAt = Number(prefs.savedAt) || filtersSavedAt;
   const colors = prefs.colors && typeof prefs.colors === "object" ? prefs.colors : {};
