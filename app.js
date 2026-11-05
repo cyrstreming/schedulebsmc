@@ -56,13 +56,15 @@ const DEFAULT_COLORS = { practice: "#48d484", theory: "#3b8bfd", split: "#d93b3b
 const state = {
   group: "",
   subgroup: "all",
+  heldSubgroup: "",
   teacher: "all",
   theme: "system",
   look: "standard",
   colors: { practice: "", theory: "", split: "" },
-  showGroup: true,
+  showGroup: false,
   showTeacher: false,
-  showSubgroup: true,
+  showSubgroup: false,
+  showKind: true,
   blockOrder: "schedule",
   weekView: false,
   warnOnOpen: true,
@@ -92,7 +94,6 @@ const teacherField = document.querySelector("#teacherField");
 const subgroupField = document.querySelector("#subgroupField");
 const groupSelect = document.querySelector("#groupSelect");
 const teacherSelect = document.querySelector("#teacherSelect");
-const teacherNow = document.querySelector("#teacherNow");
 const subgroupSelect = document.querySelector("#subgroupSelect");
 const todayButton = document.querySelector("#todayButton");
 const prevMonth = document.querySelector("#prevMonth");
@@ -149,6 +150,10 @@ const editNumberLabel = document.querySelector("#editNumberLabel");
 const editNumber = document.querySelector("#editNumber");
 const editTime = document.querySelector("#editTime");
 const editSubject = document.querySelector("#editSubject");
+const editSubjectField = document.querySelector("#editSubjectField");
+const editSubjectTextField = document.querySelector("#editSubjectTextField");
+const editSubjectText = document.querySelector("#editSubjectText");
+const editOther = document.querySelector("#editOther");
 const editSubgroup = document.querySelector("#editSubgroup");
 const editRoom = document.querySelector("#editRoom");
 const editError = document.querySelector("#editError");
@@ -210,10 +215,25 @@ const colorPractice = document.querySelector("#colorPractice");
 const colorTheory = document.querySelector("#colorTheory");
 const colorSplit = document.querySelector("#colorSplit");
 const colorReset = document.querySelector("#colorReset");
+const currentPick = document.querySelector("#currentPick");
+const currentPickText = document.querySelector("#currentPickText");
+const pickMenu = document.querySelector("#pickMenu");
+const pickMenuClose = document.querySelector("#pickMenuClose");
+const pickGroup = document.querySelector("#pickGroup");
+const pickSubgroup = document.querySelector("#pickSubgroup");
+const pickTeacher = document.querySelector("#pickTeacher");
+const pickGroupField = document.querySelector("#pickGroupField");
+const pickSubgroupField = document.querySelector("#pickSubgroupField");
+const settingsGroup = document.querySelector("#settingsGroup");
+const settingsSubgroup = document.querySelector("#settingsSubgroup");
+const settingsTeacher = document.querySelector("#settingsTeacher");
+const settingsGroupField = document.querySelector("#settingsGroupField");
+const settingsSubgroupField = document.querySelector("#settingsSubgroupField");
 const showGroup = document.querySelector("#showGroup");
 const orderChoices = document.querySelector("#orderChoices");
 const showTeacher = document.querySelector("#showTeacher");
 const showSubgroup = document.querySelector("#showSubgroup");
+const showKind = document.querySelector("#showKind");
 const warnOnOpen = document.querySelector("#warnOnOpen");
 const syncStatus = document.querySelector("#syncStatus");
 const syncCodeButton = document.querySelector("#syncCodeButton");
@@ -655,6 +675,7 @@ const edits = loadedEdits.items;
 const addedLessons = loadedEdits.added;
 let editsSavedAt = loadedEdits.savedAt;
 let addCustomSubject = false;
+let editCustomSubject = false;
 let editsTimer = 0;
 let editingId = "";
 let purgingId = "";
@@ -739,6 +760,7 @@ function saveState() {
   const next = {
     group: state.group,
     subgroup: state.subgroup,
+    heldSubgroup: state.heldSubgroup,
     teacher: state.teacher,
     theme: state.theme,
     look: state.look,
@@ -746,15 +768,18 @@ function saveState() {
     showGroup: state.showGroup,
     showTeacher: state.showTeacher,
     showSubgroup: state.showSubgroup,
+    showKind: state.showKind,
     blockOrder: state.blockOrder,
     warnOnOpen: state.warnOnOpen,
     subgroupMenu: 3,
-    listsDefault: 4,
+    listsDefault: 5,
     pickerReset: 2
   };
   const previous = loadPrefs();
   const same = ["group", "subgroup", "teacher", "theme", "look", "showGroup", "showTeacher", "showSubgroup", "blockOrder", "warnOnOpen", "subgroupMenu", "listsDefault", "pickerReset"]
     .every((key) => JSON.stringify(previous[key]) === JSON.stringify(next[key]))
+    && (previous.heldSubgroup || "") === (next.heldSubgroup || "")
+    && (previous.showKind !== false) === next.showKind
     && JSON.stringify(previous.colors || {}) === JSON.stringify(next.colors);
   if (!same) filtersSavedAt = Date.now();
   next.savedAt = filtersSavedAt;
@@ -794,6 +819,7 @@ function cloudSnapshot() {
       savedAt: filtersSavedAt,
       group: state.group,
       subgroup: state.subgroup,
+      heldSubgroup: state.heldSubgroup,
       teacher: state.teacher,
       theme: state.theme,
       look: state.look,
@@ -801,10 +827,11 @@ function cloudSnapshot() {
       showGroup: state.showGroup,
       showTeacher: state.showTeacher,
       showSubgroup: state.showSubgroup,
+      showKind: state.showKind,
       blockOrder: state.blockOrder,
       warnOnOpen: state.warnOnOpen,
       subgroupMenu: 3,
-      listsDefault: 4,
+      listsDefault: 5,
       pickerReset: 2
     },
     notes: { savedAt: notesSavedAt, items: notes },
@@ -1256,12 +1283,51 @@ function syncSubgroupOptions() {
   for (const number of sorted) subgroupSelect.add(new Option(number, number));
   if (state.subgroup !== "all" && !sorted.includes(state.subgroup)) state.subgroup = "all";
   subgroupSelect.value = state.subgroup;
+  settingsSubgroup.replaceChildren();
+  pickSubgroup.replaceChildren();
+  for (const option of subgroupSelect.options) {
+    settingsSubgroup.add(new Option(option.text, option.value));
+    pickSubgroup.add(new Option(option.text, option.value));
+  }
+  settingsSubgroup.value = state.subgroup;
+  pickSubgroup.value = state.subgroup;
+}
+
+function syncCurrentPick() {
+  let text = "";
+  if (state.teacher !== "all") {
+    if (!state.showTeacher) text = state.teacher;
+  } else {
+    const parts = [];
+    if (!state.showGroup && state.group) parts.push(state.group);
+    if (!state.showSubgroup) parts.push(state.subgroup === "all" ? "вся группа" : `${state.subgroup} подгруппа`);
+    text = parts.join(" · ");
+  }
+  currentPick.hidden = !text;
+  currentPickText.textContent = text;
+  currentPick.title = text;
+  currentPick.setAttribute("aria-label", text ? `${text}. Изменить` : "Изменить");
+  if ([...settingsGroup.options].some((option) => option.value === state.group)) settingsGroup.value = state.group;
+  if ([...pickGroup.options].some((option) => option.value === state.group)) pickGroup.value = state.group;
+  if ([...pickSubgroup.options].some((option) => option.value === state.subgroup)) pickSubgroup.value = state.subgroup;
 }
 
 function syncFilters() {
   const byTeacher = state.teacher !== "all";
   groupSelect.disabled = byTeacher;
+  subgroupSelect.disabled = byTeacher;
+  settingsGroup.disabled = byTeacher;
+  settingsSubgroup.disabled = byTeacher;
+  pickGroup.disabled = byTeacher;
+  pickSubgroup.disabled = byTeacher;
   groupField.classList.toggle("is-disabled", byTeacher);
+  subgroupField.classList.toggle("is-disabled", byTeacher);
+  settingsGroupField.classList.toggle("is-disabled", byTeacher);
+  settingsSubgroupField.classList.toggle("is-disabled", byTeacher);
+  pickGroupField.classList.toggle("is-disabled", byTeacher);
+  pickSubgroupField.classList.toggle("is-disabled", byTeacher);
+  if ([...settingsTeacher.options].some((option) => option.value === state.teacher)) settingsTeacher.value = state.teacher;
+  if ([...pickTeacher.options].some((option) => option.value === state.teacher)) pickTeacher.value = state.teacher;
 }
 
 function lessonMinutes(lesson) {
@@ -1363,50 +1429,6 @@ function renderCountdown() {
   countdown.hidden = true;
   countdownText.replaceChildren();
   countdown.className = "countdown";
-}
-
-function describeByGroup(lessons) {
-  const byGroup = new Map();
-  for (const lesson of lessons) {
-    let subjects = byGroup.get(lesson.group);
-    if (!subjects) {
-      subjects = new Set();
-      byGroup.set(lesson.group, subjects);
-    }
-    const subject = lesson.subject == null ? "" : String(lesson.subject).trim();
-    if (subject) subjects.add(subject);
-  }
-  return [...byGroup.entries()].map(([group, subjects]) => {
-    const list = [...subjects];
-    return list.length ? `${group}: ${list.join(", ")}` : group;
-  }).join("; ");
-}
-
-/** Для выбранного преподавателя показывает, где он занят сегодня. */
-function renderTeacherNow() {
-  if (state.teacher === "all") {
-    teacherNow.hidden = true;
-    teacherNow.textContent = "";
-    return;
-  }
-  const today = formatISO(new Date());
-  const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  const todayLessons = filteredLessons().filter((lesson) => lesson.date === today);
-  const current = todayLessons.filter((lesson) => {
-    const span = lessonMinutes(lesson);
-    return span && minutes >= span[0] && minutes < span[1];
-  });
-  teacherNow.hidden = false;
-  if (current.length) {
-    teacherNow.textContent = `Сейчас ${describeByGroup(current)}`;
-    return;
-  }
-  if (todayLessons.length) {
-    teacherNow.textContent = `Сегодня: ${describeByGroup(todayLessons)}`;
-    return;
-  }
-  teacherNow.textContent = "Сегодня у этого преподавателя занятий нет";
 }
 
 function lessonBrief(lesson) {
@@ -1766,6 +1788,31 @@ function fillNumberOptions(lesson) {
   editNumber.value = current;
 }
 
+function syncEditSubjectMode() {
+  editSubjectField.hidden = editCustomSubject;
+  editSubjectTextField.hidden = !editCustomSubject;
+  editOther.textContent = editCustomSubject ? "Из списка" : "Другое";
+}
+
+function fillEditSubjects(lesson) {
+  const names = groupSubjects(lesson.kind === "practice" ? "practice" : "");
+  const current = displayText(lesson.subject, "");
+  editSubject.replaceChildren();
+  for (const name of names) editSubject.add(new Option(name, name));
+  editCustomSubject = !names.includes(current);
+  if (!names.length) editCustomSubject = true;
+  if (editCustomSubject) editSubjectText.value = current;
+  else {
+    editSubject.value = current;
+    editSubjectText.value = "";
+  }
+  syncEditSubjectMode();
+}
+
+function editSubjectValue() {
+  return (editCustomSubject ? editSubjectText.value : editSubject.value).trim();
+}
+
 function openEdit(id) {
   const source = sourceById(id);
   if (!source || historyLocked(source.date)) return;
@@ -1774,7 +1821,7 @@ function openEdit(id) {
   editTitle.textContent = `Изменить ${unitAccusative(view)}`;
   fillNumberOptions(view);
   editTime.value = view.time ? formatTime(view.time) : "";
-  editSubject.value = displayText(view.subject, "");
+  fillEditSubjects(view);
   editSubgroup.value = subgroupNumber(view.subgroup) || "";
   editRoom.value = view.room ? String(view.room).trim() : "";
   editReset.hidden = !edits[id] || edits[id].deleted;
@@ -1792,7 +1839,7 @@ function draftFromForm(source) {
   const number = editNumber.value;
   return {
     time: editTime.value.trim() ? formatTime(editTime.value.trim()) : "",
-    subject: editSubject.value.trim(),
+    subject: editSubjectValue(),
     subgroup: editSubgroup.value,
     room: editRoom.value.trim(),
     pair: practice ? fieldsOf(source).pair : number,
@@ -1899,7 +1946,7 @@ function commitEdit(event) {
   const source = sourceById(editingId);
   if (!source) return;
   const time = editTime.value.trim();
-  const subject = editSubject.value.trim();
+  const subject = editSubjectValue();
   if (time && !lessonMinutes({ time })) {
     editError.hidden = false;
     editError.textContent = "Время укажите как 08:00–09:40";
@@ -2460,7 +2507,7 @@ function createLessonCard(lesson, index) {
 
   const chips = document.createElement("span");
   chips.className = "badges";
-  if (lesson.kind) chips.append(badge(KIND_LABEL[lesson.kind], `badge-${lesson.kind}`));
+  if (state.showKind && lesson.kind) chips.append(badge(KIND_LABEL[lesson.kind], `badge-${lesson.kind}`));
   if (state.teacher !== "all" && lesson.group) chips.append(badge(lesson.group));
   const subgroup = subgroupNumber(lesson.subgroup);
   if (subgroup) chips.append(badge(`${subgroup} п/гр`));
@@ -2737,7 +2784,7 @@ function scrollToSchedule() {
 
 function render() {
   syncFilters();
-  renderTeacherNow();
+  syncCurrentPick();
   renderCountdown();
   resetCalendarMotion();
   renderCalendar();
@@ -2872,7 +2919,7 @@ let scrollLocked = false;
 let lockedScroll = 0;
 
 function syncModal() {
-  const open = !notice.hidden || !groupPicker.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
+  const open = !notice.hidden || !groupPicker.hidden || !pickMenu.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   if (open && !scrollLocked) {
     lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
     scrollLocked = true;
@@ -2990,7 +3037,6 @@ function finishFirstChoice() {
   awaitingGroup = false;
   hideOverlay(groupPicker);
   appContent.hidden = false;
-  state.showSubgroup = true;
   syncSubgroupOptions();
   syncFilterVisibility();
   saveState();
@@ -2999,20 +3045,33 @@ function finishFirstChoice() {
   render();
 }
 
+function applyTeacherChoice(next) {
+  const previous = state.teacher;
+  state.teacher = next;
+  if (next !== "all") {
+    if (previous === "all" && state.subgroup !== "all") state.heldSubgroup = state.subgroup;
+    state.subgroup = "all";
+    return;
+  }
+  if (previous !== "all" && state.heldSubgroup) {
+    state.subgroup = state.heldSubgroup;
+    state.heldSubgroup = "";
+  }
+}
+
 function chooseGroup(group, subgroup) {
   state.group = group;
   state.teacher = "all";
+  state.heldSubgroup = "";
   state.subgroup = subgroup;
-  state.showGroup = true;
   groupSelect.value = group;
   teacherSelect.value = "all";
   finishFirstChoice();
 }
 
 function chooseTeacher(name) {
-  state.teacher = name;
+  applyTeacherChoice(name);
   teacherSelect.value = name;
-  state.subgroup = "all";
   state.showGroup = false;
   if (!state.group && groups.length) {
     state.group = groups[0];
@@ -3047,11 +3106,22 @@ function applyLayout() {
   if (second.nextElementSibling !== feedbackButton) parent.insertBefore(second, feedbackButton);
 }
 
+function openPickMenu() {
+  syncSubgroupOptions();
+  syncFilters();
+  showOverlay(pickMenu);
+}
+
+function closePickMenu() {
+  hideOverlay(pickMenu);
+}
+
 function syncFilterVisibility() {
   groupField.hidden = !state.showGroup;
   teacherField.hidden = !state.showTeacher;
   subgroupField.hidden = !state.showSubgroup;
   groupField.parentElement.hidden = !state.showGroup && !state.showTeacher;
+  syncCurrentPick();
   applyLayout();
 }
 
@@ -3071,6 +3141,9 @@ function syncSettingsControls() {
   showGroup.checked = state.showGroup;
   showTeacher.checked = state.showTeacher;
   showSubgroup.checked = state.showSubgroup;
+  showKind.checked = state.showKind;
+  if ([...settingsGroup.options].some((option) => option.value === state.group)) settingsGroup.value = state.group;
+  if ([...settingsSubgroup.options].some((option) => option.value === state.subgroup)) settingsSubgroup.value = state.subgroup;
   warnOnOpen.checked = state.warnOnOpen;
 }
 
@@ -3265,8 +3338,7 @@ function bindEvents() {
   });
 
   teacherSelect.addEventListener("change", () => {
-    state.teacher = teacherSelect.value;
-    if (state.teacher !== "all") state.subgroup = "all";
+    applyTeacherChoice(teacherSelect.value);
     syncSubgroupOptions();
     saveState();
     render();
@@ -3274,6 +3346,71 @@ function bindEvents() {
 
   subgroupSelect.addEventListener("change", () => {
     state.subgroup = subgroupSelect.value;
+    saveState();
+    render();
+  });
+
+  settingsGroup.addEventListener("change", () => {
+    if (state.teacher !== "all") {
+      settingsGroup.value = state.group;
+      return;
+    }
+    state.group = settingsGroup.value;
+    groupSelect.value = state.group;
+    syncSubgroupOptions();
+    saveState();
+    render();
+  });
+
+  settingsSubgroup.addEventListener("change", () => {
+    if (state.teacher !== "all") {
+      settingsSubgroup.value = state.subgroup;
+      return;
+    }
+    state.subgroup = settingsSubgroup.value;
+    subgroupSelect.value = state.subgroup;
+    saveState();
+    render();
+  });
+
+  settingsTeacher.addEventListener("change", () => {
+    applyTeacherChoice(settingsTeacher.value);
+    teacherSelect.value = state.teacher;
+    syncSubgroupOptions();
+    saveState();
+    render();
+  });
+
+  currentPick.addEventListener("click", openPickMenu);
+  pickMenuClose.addEventListener("click", closePickMenu);
+  pickGroup.addEventListener("change", () => {
+    if (state.teacher !== "all") {
+      pickGroup.value = state.group;
+      return;
+    }
+    state.group = pickGroup.value;
+    groupSelect.value = state.group;
+    settingsGroup.value = state.group;
+    syncSubgroupOptions();
+    saveState();
+    render();
+  });
+  pickSubgroup.addEventListener("change", () => {
+    if (state.teacher !== "all") {
+      pickSubgroup.value = state.subgroup;
+      return;
+    }
+    state.subgroup = pickSubgroup.value;
+    subgroupSelect.value = state.subgroup;
+    settingsSubgroup.value = state.subgroup;
+    saveState();
+    render();
+  });
+  pickTeacher.addEventListener("change", () => {
+    applyTeacherChoice(pickTeacher.value);
+    teacherSelect.value = state.teacher;
+    settingsTeacher.value = state.teacher;
+    syncSubgroupOptions();
     saveState();
     render();
   });
@@ -3355,6 +3492,11 @@ function bindEvents() {
     state.showSubgroup = showSubgroup.checked;
     syncFilterVisibility();
     saveState();
+  });
+  showKind.addEventListener("change", () => {
+    state.showKind = showKind.checked;
+    saveState();
+    render();
   });
   warnOnOpen.addEventListener("change", () => {
     state.warnOnOpen = warnOnOpen.checked;
@@ -3462,6 +3604,11 @@ function bindEvents() {
     if (addCustomSubject && !addSubject.options.length) addCustomSubject = true;
     syncAddSubjectMode();
   });
+  editOther.addEventListener("click", () => {
+    editCustomSubject = !editCustomSubject;
+    if (!editCustomSubject && !editSubject.options.length) editCustomSubject = true;
+    syncEditSubjectMode();
+  });
   bindSwipe();
 }
 
@@ -3484,13 +3631,20 @@ function readPrefs(prefs) {
   if (typeof prefs.subgroup === "string" && (prefs.subgroup === "all" || /^\d+$/.test(prefs.subgroup))) {
     state.subgroup = prefs.subgroup;
   }
+  state.heldSubgroup = typeof prefs.heldSubgroup === "string" && /^\d+$/.test(prefs.heldSubgroup) ? prefs.heldSubgroup : "";
   state.theme = prefs.theme === "light" || prefs.theme === "dark" ? prefs.theme : "system";
   state.look = prefs.look === "simple" ? "simple" : "standard";
-  const listsSaved = prefs.listsDefault === 4 || prefs.listsDefault === 2;
-  state.showGroup = prefs.listsDefault === 4 ? prefs.showGroup === true : true;
-  state.showTeacher = listsSaved && prefs.showTeacher === true;
+  if (prefs.listsDefault === 5) {
+    state.showGroup = prefs.showGroup === true;
+    state.showTeacher = prefs.showTeacher === true;
+    state.showSubgroup = prefs.showSubgroup === true;
+  } else {
+    state.showGroup = false;
+    state.showTeacher = false;
+    state.showSubgroup = false;
+  }
   state.blockOrder = prefs.blockOrder === "calendar" ? "calendar" : "schedule";
-  if (typeof prefs.showSubgroup === "boolean") state.showSubgroup = prefs.showSubgroup;
+  state.showKind = prefs.showKind !== false;
   state.warnOnOpen = prefs.warnOnOpen !== false;
   filtersSavedAt = Number(prefs.savedAt) || filtersSavedAt;
   const colors = prefs.colors && typeof prefs.colors === "object" ? prefs.colors : {};
@@ -3553,8 +3707,8 @@ async function init() {
 
   try {
     const [theory, practice] = await Promise.all([
-      loadJson("schedule_theory.json?v=4"),
-      loadJson("schedule_practice.json?v=4")
+      loadJson("schedule_theory.json?v=5"),
+      loadJson("schedule_practice.json?v=5")
     ]);
     for (const [group, lessons] of indexByGroup(theory)) theoryByGroup.set(group, lessons);
     for (const [group, lessons] of indexByGroup(practice)) practiceByGroup.set(group, lessons);
@@ -3568,9 +3722,17 @@ async function init() {
       return;
     }
 
-    for (const group of groups) groupSelect.add(new Option(group, group));
+    for (const group of groups) {
+      groupSelect.add(new Option(group, group));
+      settingsGroup.add(new Option(group, group));
+      pickGroup.add(new Option(group, group));
+    }
     teachers = [...new Set([...theoryByTeacher.keys(), ...practiceByTeacher.keys()])].sort((a, b) => a.localeCompare(b, "ru"));
-    for (const name of teachers) teacherSelect.add(new Option(name, name));
+    for (const name of teachers) {
+      teacherSelect.add(new Option(name, name));
+      settingsTeacher.add(new Option(name, name));
+      pickTeacher.add(new Option(name, name));
+    }
     setPickerRole("student");
     await pullCloud();
     const stored = loadPrefs();

@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=49">
+  <link rel="stylesheet" href="styles.css?v=57">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -79,7 +79,10 @@
           </svg>
         </div>
         <div class="hero-copy">
-          <h1>Расписание</h1>
+          <div class="hero-title-row">
+            <h1>Расписание</h1>
+            <button type="button" id="currentPick" class="current-pick" hidden aria-haspopup="dialog" aria-controls="pickMenu"><span id="currentPickText"></span></button>
+          </div>
           <p>Занятия колледжа</p>
           <button type="button" class="btn-install" id="installButton">Скачать приложение</button>
         </div>
@@ -108,8 +111,6 @@
             </div>
           </label>
         </div>
-        <p id="teacherNow" class="teacher-now" hidden></p>
-
         <label class="field" id="subgroupField">
           <span>Подгруппа</span>
           <div class="select-wrap">
@@ -183,7 +184,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
-      <p class="app-version" id="appVersion">Версия: 1.58.49</p>
+      <p class="app-version" id="appVersion">Версия: 1.68.57</p>
     </div>
   </div>
 
@@ -228,6 +229,32 @@
     </div>
   </div>
 
+  <div class="overlay" id="pickMenu" role="dialog" aria-modal="true" aria-labelledby="pickMenuTitle" hidden>
+    <div class="modal settings-modal">
+      <div class="sheet-head">
+        <h2 id="pickMenuTitle">Выбор</h2>
+        <button type="button" class="icon-btn" id="pickMenuClose" aria-label="Закрыть">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <label class="field" id="pickGroupField"><span>Группа</span>
+        <div class="select-wrap"><select id="pickGroup"></select></div>
+      </label>
+      <label class="field" id="pickSubgroupField"><span>Подгруппа</span>
+        <div class="select-wrap"><select id="pickSubgroup"></select></div>
+      </label>
+      <label class="field" id="pickTeacherField"><span>Преподаватель</span>
+        <div class="select-wrap">
+          <select id="pickTeacher">
+            <option value="all">Все</option>
+          </select>
+        </div>
+      </label>
+    </div>
+  </div>
+
   <div class="overlay settings-overlay" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
     <div class="modal settings-modal">
       <div class="sheet-head">
@@ -258,6 +285,20 @@
         <button type="button" data-order="calendar">Календарь</button>
       </div>
 
+      <label class="field" id="settingsGroupField"><span>Группа</span>
+        <div class="select-wrap"><select id="settingsGroup"></select></div>
+      </label>
+      <label class="field" id="settingsSubgroupField"><span>Подгруппа</span>
+        <div class="select-wrap"><select id="settingsSubgroup"></select></div>
+      </label>
+      <label class="field" id="settingsTeacherField"><span>Преподаватель</span>
+        <div class="select-wrap">
+          <select id="settingsTeacher">
+            <option value="all">Все</option>
+          </select>
+        </div>
+      </label>
+
       <p class="field-label">Списки на главном экране</p>
       <label class="check-row"><span>Группа</span><span class="switch"><input type="checkbox" id="showGroup"><span></span></span></label>
       <label class="check-row"><span>Подгруппа</span><span class="switch"><input type="checkbox" id="showSubgroup"><span></span></span></label>
@@ -285,6 +326,9 @@
         <label>Теория по подгруппам <input type="color" id="colorSplit" value="#d93b3b"></label>
       </div>
       <button type="button" class="btn btn-quiet" id="colorReset">Сбросить цвета</button>
+
+      <p class="field-label">Другое</p>
+      <label class="check-row"><span>Показывать тип занятия</span><span class="switch"><input type="checkbox" id="showKind"><span></span></span></label>
     </div>
   </div>
 
@@ -363,7 +407,15 @@
           <div class="select-wrap"><select id="editNumber"></select></div>
         </label>
         <label class="field"><span>Время</span><input id="editTime" maxlength="40" placeholder="08:00–09:40" autocomplete="off"></label>
-        <label class="field"><span>Предмет</span><input id="editSubject" maxlength="160" autocomplete="off"></label>
+        <div class="subject-line">
+          <label class="field" id="editSubjectField"><span>Предмет</span>
+            <div class="select-wrap"><select id="editSubject"></select></div>
+          </label>
+          <label class="field" id="editSubjectTextField" hidden><span>Предмет</span>
+            <input id="editSubjectText" maxlength="160" placeholder="Своё название" autocomplete="off">
+          </label>
+          <button type="button" class="btn" id="editOther">Другое</button>
+        </div>
         <label class="field"><span>Подгруппа</span>
           <div class="select-wrap">
             <select id="editSubgroup">
@@ -514,7 +566,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=58"></script>
+  <script type="module" src="app.js?v=68"></script>
   <script>
     (function () {
       function fileVersion(url) {
