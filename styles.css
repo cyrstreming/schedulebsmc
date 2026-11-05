@@ -1371,6 +1371,11 @@ html.no-entry-warn #notice { display: none !important; }
 .install-steps .hint,
 .install-steps .sync-code { margin-top: 8px; }
 
+#copyCodeButton {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .install-steps .btn {
   display: flex;
   width: fit-content;

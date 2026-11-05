@@ -218,6 +218,7 @@ const warnOnOpen = document.querySelector("#warnOnOpen");
 const syncStatus = document.querySelector("#syncStatus");
 const syncCodeButton = document.querySelector("#syncCodeButton");
 const syncCode = document.querySelector("#syncCode");
+const copyCodeButton = document.querySelector("#copyCodeButton");
 const installCodeStatus = document.querySelector("#installCodeStatus");
 const linkDialog = document.querySelector("#linkDialog");
 const linkForm = document.querySelector("#linkForm");
@@ -1007,10 +1008,53 @@ function syncCloudPanel() {
   syncStatus.textContent = "";
 }
 
+function copyWithCommand(text) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.top = "0";
+  area.style.left = "0";
+  area.style.fontSize = "16px";
+  document.body.appendChild(area);
+  const selection = document.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(area);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  area.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
+  selection.removeAllRanges();
+  area.remove();
+  return ok;
+}
+
+function copyText(text) {
+  if (copyWithCommand(text)) return Promise.resolve(true);
+  if (!navigator.clipboard || !navigator.clipboard.writeText) return Promise.resolve(false);
+  return navigator.clipboard.writeText(text).then(() => true, () => false);
+}
+
+let copyCodeTimer = 0;
+
+async function copySyncCode() {
+  const code = syncCode.textContent.replace(/\D/g, "");
+  if (code.length !== 6) return;
+  const ok = await copyText(code);
+  copyCodeButton.textContent = ok ? "Скопировано" : "Не удалось скопировать";
+  clearTimeout(copyCodeTimer);
+  copyCodeTimer = setTimeout(() => {
+    copyCodeButton.textContent = "Скопировать код";
+  }, 2000);
+}
+
 async function requestSyncCode() {
   const url = syncUrl();
   const headers = cloudAuthHeaders();
   syncCode.hidden = true;
+  copyCodeButton.hidden = true;
+  copyCodeButton.textContent = "Скопировать код";
   if (!url || !headers) {
     installCodeStatus.textContent = "Код можно получить только внутри Telegram.";
     return;
@@ -1024,6 +1068,7 @@ async function requestSyncCode() {
     const data = await response.json();
     syncCode.textContent = String(data.code || "");
     syncCode.hidden = !syncCode.textContent;
+    copyCodeButton.hidden = syncCode.hidden;
     installCodeStatus.textContent = "Введите этот код в ярлыке. Он действует 10 минут.";
   } catch (error) {
     installCodeStatus.textContent = "Нет связи с облаком.";
@@ -3316,6 +3361,7 @@ function bindEvents() {
     saveState();
   });
   syncCodeButton.addEventListener("click", requestSyncCode);
+  copyCodeButton.addEventListener("click", copySyncCode);
   linkForm.addEventListener("submit", linkSyncDevice);
   settingsLink.addEventListener("submit", linkSyncDevice);
   linkSkip.addEventListener("click", skipLink);
