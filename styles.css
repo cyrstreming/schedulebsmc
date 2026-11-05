@@ -443,10 +443,43 @@ select {
   gap: 12px;
 }
 
+.day-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .day-head h2 {
   margin: 0;
   font-size: 16px;
   letter-spacing: -0.02em;
+}
+
+.day-head .short-mark {
+  color: var(--c-note);
+  font-size: 12px;
+  font-weight: 750;
+  text-shadow:
+    0 0 5px color-mix(in srgb, var(--c-note) 85%, transparent),
+    0 0 12px color-mix(in srgb, var(--c-note) 42%, transparent);
+}
+
+html.theme-light .day-head .short-mark,
+html.theme-light .week-short {
+  text-shadow:
+    0 0 1px color-mix(in srgb, var(--c-note) 55%, #6a4200),
+    0 0 6px color-mix(in srgb, var(--c-note) 70%, transparent);
+}
+
+.week-short {
+  color: var(--c-note);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.25;
+  text-shadow:
+    0 0 3px color-mix(in srgb, var(--c-note) 80%, transparent),
+    0 0 7px color-mix(in srgb, var(--c-note) 38%, transparent);
 }
 
 .week-label {

@@ -33,6 +33,21 @@ const SHIFT_TIMES = {
   2: "12:15–15:45",
   3: "16:30–20:00"
 };
+const SHORT_DAY = "2026-11-06";
+const SHORT_PAIR_TIMES = {
+  1: "08:00–09:20",
+  2: "09:30–10:50",
+  3: "11:10–12:30",
+  4: "12:40–14:00",
+  5: "14:20–15:40",
+  6: "15:50–17:10",
+  7: "17:20–18:40"
+};
+const SHORT_SHIFT_TIMES = {
+  1: "08:00–10:50",
+  2: "11:35–14:25",
+  3: "15:10–18:00"
+};
 
 const tg = window.Telegram?.WebApp ?? null;
 
@@ -90,6 +105,7 @@ let calendarPrev = document.querySelector("#calendarPrev");
 let calendarGrid = document.querySelector("#calendarGrid");
 let calendarNext = document.querySelector("#calendarNext");
 const dayTitle = document.querySelector("#dayTitle");
+const shortMark = document.querySelector("#shortMark");
 const dayCount = document.querySelector("#dayCount");
 const weekButton = document.querySelector("#weekButton");
 const dayTools = document.querySelector(".day-tools");
@@ -270,6 +286,19 @@ function shiftNumber(value) {
 
 function formatTime(value) {
   return String(value).replace(/\s*-\s*/, "–");
+}
+
+function timeTable(lesson) {
+  const practice = lesson && lesson.kind === "practice";
+  const short = lesson && lesson.date === SHORT_DAY;
+  if (practice) return short ? SHORT_SHIFT_TIMES : SHIFT_TIMES;
+  return short ? SHORT_PAIR_TIMES : PAIR_TIMES;
+}
+
+function officialTime(lesson) {
+  if (!lesson || lesson.added || lesson.date !== SHORT_DAY) return lesson && lesson.time ? formatTime(lesson.time) : "";
+  const key = lesson.kind === "practice" ? String(shiftNumber(lesson.shift)) : String(Number(lesson.pair));
+  return timeTable(lesson)[key] || (lesson.time ? formatTime(lesson.time) : "");
 }
 
 function displayText(value, fallback) {
@@ -687,10 +716,15 @@ function flushEdits() {
 /** Личная правка не меняет общий файл: в карточке показывается копия. */
 function viewLesson(lesson) {
   const edit = edits[lesson.id];
-  if (!edit) return lesson;
+  const scheduled = officialTime(lesson);
+  if (!edit) {
+    if (!scheduled || scheduled === formatTime(lesson.time || "")) return lesson;
+    return { ...lesson, time: scheduled };
+  }
   if (edit.deleted) return null;
   const copy = { ...lesson, personal: true };
   if (edit.time != null) copy.time = edit.time;
+  else if (scheduled) copy.time = scheduled;
   if (edit.subject != null) copy.subject = edit.subject;
   if (edit.subgroup != null) copy.subgroup = edit.subgroup;
   if (edit.room != null) copy.room = edit.room;
@@ -1671,7 +1705,7 @@ function slotNumber(table, time) {
 function syncNumberFromTime() {
   const source = sourceById(editingId);
   if (!source) return;
-  const number = slotNumber(isShift(source) ? SHIFT_TIMES : PAIR_TIMES, editTime.value);
+  const number = slotNumber(timeTable(source), editTime.value);
   if (number) editNumber.value = number;
 }
 
@@ -1701,7 +1735,6 @@ function openEdit(id) {
   editReset.hidden = !edits[id] || edits[id].deleted;
   editError.hidden = true;
   showOverlay(editDialog);
-  editSubject.focus({ preventScroll: true });
 }
 
 function closeEdit() {
@@ -1724,6 +1757,7 @@ function draftFromForm(source) {
 
 function sameAsSource(next, source) {
   const base = fieldsOf(source);
+  base.time = officialTime(source) || base.time;
   const shiftSame = isShift(source)
     ? (next.shift ? String(shiftNumber(next.shift)) : "") === base.shift
     : true;
@@ -2053,7 +2087,9 @@ function groupSubjects(kind) {
 }
 
 function addTimeTable() {
-  return addKind.value === "practice" ? SHIFT_TIMES : PAIR_TIMES;
+  const practice = addKind.value === "practice";
+  if (state.selected === SHORT_DAY) return practice ? SHORT_SHIFT_TIMES : SHORT_PAIR_TIMES;
+  return practice ? SHIFT_TIMES : PAIR_TIMES;
 }
 
 function fillAddNumber() {
@@ -2154,8 +2190,6 @@ function openAdd() {
   syncAddKind();
   addError.hidden = true;
   showOverlay(addDialog);
-  if (addCustomSubject) addSubjectText.focus({ preventScroll: true });
-  else addSubject.focus({ preventScroll: true });
 }
 
 function closeAdd() {
@@ -2165,7 +2199,7 @@ function closeAdd() {
 function draftAddedLesson() {
   const kind = addKind.value === "practice" || addKind.value === "split" ? addKind.value : "theory";
   const practice = kind === "practice";
-  const table = practice ? SHIFT_TIMES : PAIR_TIMES;
+  const table = addTimeTable();
   const number = addNumber.value === "skip" ? "" : (addNumber.value || "");
   const time = addTime.value === "custom"
     ? (addTimeText.value.trim() ? formatTime(addTimeText.value.trim()) : "")
@@ -2560,6 +2594,7 @@ function renderDetails() {
   const dayLessons = filteredLessons().filter((lesson) => lesson.date === state.selected);
   const selectedDate = state.selected ? parseISO(state.selected) : new Date();
   dayTitle.textContent = `${WEEKDAYS[selectedDate.getDay()]}, ${selectedDate.getDate()} ${MONTHS_GEN[selectedDate.getMonth()]}`;
+  shortMark.hidden = state.selected !== SHORT_DAY;
   const week = state.selected ? academicWeekNumber(state.selected) : academicWeekNumber(formatISO(new Date()));
   weekLabel.textContent = `${week}-я учебная неделя`;
   emptyBox.textContent = "На этот день занятий нет";
@@ -2599,6 +2634,7 @@ function renderWeek() {
   const sundayList = lessons.filter((lesson) => lesson.date === sundayIso);
   if (sundayList.length) days.push({ date: sunday, iso: sundayIso, list: sundayList });
   dayTitle.textContent = formatDaySpan(monday, saturday);
+  shortMark.hidden = true;
   weekLabel.textContent = `${academicWeekNumber(formatISO(monday))}-я учебная неделя`;
   const total = days.reduce((sum, day) => sum + day.list.length, 0);
   dayCount.textContent = total ? `${total} ${plural(total, "занятие", "занятия", "занятий")}` : "";
@@ -2612,6 +2648,12 @@ function renderWeek() {
     title.className = "week-cell-title";
     title.textContent = `${WEEK_SHORT[day.date.getDay()]} ${day.date.getDate()}`;
     cell.append(title);
+    if (day.iso === SHORT_DAY) {
+      const note = document.createElement("span");
+      note.className = "week-short";
+      note.textContent = "Сокращенные занятия";
+      cell.append(note);
+    }
     if (!day.list.length) {
       const empty = document.createElement("span");
       empty.className = "week-empty";
@@ -2845,7 +2887,6 @@ function closeNotice() {
   hideOverlay(notice, () => {
     if (!openPicker) return;
     showOverlay(groupPicker);
-    groupSearch.focus({ preventScroll: true });
   });
 }
 
@@ -2905,6 +2946,7 @@ function finishFirstChoice() {
   hideOverlay(groupPicker);
   appContent.hidden = false;
   syncSubgroupOptions();
+  syncFilterVisibility();
   saveState();
   openNearestDay();
   syncModal();
@@ -2915,6 +2957,7 @@ function chooseGroup(group, subgroup) {
   state.group = group;
   state.teacher = "all";
   state.subgroup = subgroup;
+  state.showGroup = true;
   groupSelect.value = group;
   teacherSelect.value = "all";
   finishFirstChoice();
@@ -2924,6 +2967,7 @@ function chooseTeacher(name) {
   state.teacher = name;
   teacherSelect.value = name;
   state.subgroup = "all";
+  state.showGroup = false;
   if (!state.group && groups.length) {
     state.group = groups[0];
     groupSelect.value = state.group;
@@ -3016,7 +3060,6 @@ function openFeedback() {
   const wait = feedbackWaitLeft();
   feedbackStatus.textContent = wait ? feedbackWaitText(wait) : "";
   showOverlay(feedbackDialog);
-  if (!wait) feedbackText.focus({ preventScroll: true });
 }
 
 async function sendFeedback(event) {
@@ -3304,7 +3347,7 @@ function bindEvents() {
     const source = sourceById(editingId);
     const number = editNumber.value;
     if (!source || !number) return;
-    const table = isShift(source) ? SHIFT_TIMES : PAIR_TIMES;
+    const table = timeTable(source);
     if (table[number]) editTime.value = table[number];
   });
   editTime.addEventListener("input", syncNumberFromTime);
@@ -3371,7 +3414,6 @@ function bindEvents() {
     addCustomSubject = !addCustomSubject;
     if (addCustomSubject && !addSubject.options.length) addCustomSubject = true;
     syncAddSubjectMode();
-    if (addCustomSubject) addSubjectText.focus({ preventScroll: true });
   });
   bindSwipe();
 }
@@ -3439,7 +3481,6 @@ async function init() {
     notice.hidden = true;
     document.documentElement.classList.remove("no-entry-warn");
     showOverlay(linkDialog);
-    linkCodeInput.focus({ preventScroll: true });
   } else if (!state.warnOnOpen) {
     notice.hidden = true;
     document.documentElement.classList.remove("no-entry-warn");
@@ -3510,7 +3551,6 @@ async function init() {
       awaitingGroup = true;
       if (notice.hidden) {
         showOverlay(groupPicker);
-        groupSearch.focus({ preventScroll: true });
       }
     };
     entryReady();
