@@ -216,7 +216,8 @@ const colorTheory = document.querySelector("#colorTheory");
 const colorSplit = document.querySelector("#colorSplit");
 const colorReset = document.querySelector("#colorReset");
 const currentPick = document.querySelector("#currentPick");
-const currentPickText = document.querySelector("#currentPickText");
+const currentPickMain = document.querySelector("#currentPickMain");
+const currentPickSub = document.querySelector("#currentPickSub");
 const pickMenu = document.querySelector("#pickMenu");
 const pickMenuClose = document.querySelector("#pickMenuClose");
 const pickGroup = document.querySelector("#pickGroup");
@@ -752,6 +753,7 @@ function viewLesson(lesson) {
   if (edit.room != null) copy.room = edit.room;
   if (edit.pair != null && edit.pair !== "") copy.pair = edit.pair;
   if (edit.shift != null && edit.shift !== "") copy.shift = edit.shift;
+  if (edit.teacher != null) copy.teacher = edit.teacher;
   if (lesson.kind !== "practice") copy.kind = subgroupNumber(copy.subgroup) ? "split" : "theory";
   return copy;
 }
@@ -1294,19 +1296,25 @@ function syncSubgroupOptions() {
 }
 
 function syncCurrentPick() {
-  let text = "";
+  let main = "";
+  let sub = "";
   if (state.teacher !== "all") {
-    if (!state.showTeacher) text = state.teacher;
+    if (!state.showTeacher) main = state.teacher;
   } else {
-    const parts = [];
-    if (!state.showGroup && state.group) parts.push(state.group);
-    if (!state.showSubgroup) parts.push(state.subgroup === "all" ? "вся группа" : `${state.subgroup} подгруппа`);
-    text = parts.join(" · ");
+    if (!state.showGroup && state.group) main = state.group;
+    if (!state.showSubgroup) sub = state.subgroup === "all" ? "вся группа" : `${state.subgroup} подгруппа`;
+    if (!main) {
+      main = sub;
+      sub = "";
+    }
   }
-  currentPick.hidden = !text;
-  currentPickText.textContent = text;
-  currentPick.title = text;
-  currentPick.setAttribute("aria-label", text ? `${text}. Изменить` : "Изменить");
+  const label = [main, sub].filter(Boolean).join(", ");
+  currentPick.hidden = !main;
+  currentPickMain.textContent = main;
+  currentPickSub.hidden = !sub;
+  currentPickSub.textContent = sub;
+  currentPick.title = label;
+  currentPick.setAttribute("aria-label", label ? `${label}. Изменить` : "Изменить");
   if ([...settingsGroup.options].some((option) => option.value === state.group)) settingsGroup.value = state.group;
   if ([...pickGroup.options].some((option) => option.value === state.group)) pickGroup.value = state.group;
   if ([...pickSubgroup.options].some((option) => option.value === state.subgroup)) pickSubgroup.value = state.subgroup;
@@ -1837,7 +1845,7 @@ function closeEdit() {
 function draftFromForm(source) {
   const practice = isShift(source);
   const number = editNumber.value;
-  return {
+  const next = {
     time: editTime.value.trim() ? formatTime(editTime.value.trim()) : "",
     subject: editSubjectValue(),
     subgroup: editSubgroup.value,
@@ -1845,6 +1853,11 @@ function draftFromForm(source) {
     pair: practice ? fieldsOf(source).pair : number,
     shift: practice && number ? `${number} смена` : ""
   };
+  if (next.subject !== displayText(source.subject, "")) {
+    const kind = source.kind === "practice" ? "practice" : (subgroupNumber(next.subgroup) ? "split" : "theory");
+    next.teacher = teacherForSubject(next.subject, kind, subgroupNumber(next.subgroup), source.group || state.group);
+  }
+  return next;
 }
 
 function sameAsSource(next, source) {
@@ -3584,6 +3597,7 @@ function bindEvents() {
   });
   closeOnBackdrop(notice, closeNotice);
   closeOnBackdrop(settings, closeSettings);
+  closeOnBackdrop(pickMenu, closePickMenu);
   closeOnBackdrop(installDialog, closeInstall);
   closeOnBackdrop(feedbackDialog, closeFeedback);
   closeOnBackdrop(addDialog, closeAdd);
