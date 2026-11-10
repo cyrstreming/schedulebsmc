@@ -3721,8 +3721,8 @@ async function init() {
 
   try {
     const [theory, practice] = await Promise.all([
-      loadJson("schedule_theory.json?v=5"),
-      loadJson("schedule_practice.json?v=5")
+      loadJson("schedule_theory.json?v=6"),
+      loadJson("schedule_practice.json?v=6")
     ]);
     for (const [group, lessons] of indexByGroup(theory)) theoryByGroup.set(group, lessons);
     for (const [group, lessons] of indexByGroup(practice)) practiceByGroup.set(group, lessons);
