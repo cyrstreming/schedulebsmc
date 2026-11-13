@@ -1865,6 +1865,32 @@ html.ios.theme-light.look-standard .lesson.is-past {
   background: rgba(255, 255, 255, 0.55);
 }
 
+html.ios.look-standard .lesson::after,
+html.ios.look-standard .week-cell::after,
+html.ios.look-standard .calendar::after,
+html.ios.look-standard .countdown::after,
+html.ios.look-standard .modal::after,
+html.ios.look-standard .stats::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--rim);
+  background-attachment: fixed;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+html.ios.theme-dark.look-standard .lesson::after { opacity: 0.42; }
+html.ios.theme-dark.look-standard .lesson.is-past::after { opacity: 0.28; }
+html.ios.theme-light.look-standard .lesson::after { opacity: 0.4; }
+html.ios.theme-light.look-standard .lesson.is-past::after { opacity: 0.35; }
+
 html.theme-light .lesson.kind-practice { border-left-color: var(--c-practice); }
 html.theme-light .lesson.kind-theory { border-left-color: var(--c-theory); }
 html.theme-light .lesson.kind-split { border-left-color: var(--c-split); }
