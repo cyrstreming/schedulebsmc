@@ -4,8 +4,8 @@ html.theme-light,
 body.theme-light {
   color-scheme: light;
   --bg: #f4f6fb;
-  --surface: #ffffff;
-  --surface-2: #e8eef8;
+  --surface: rgba(255, 255, 255, 0.55);
+  --surface-2: rgba(232, 238, 248, 0.62);
   --text: #121826;
   --muted: #5d6b82;
   --faint: #b4becd;
@@ -32,24 +32,24 @@ body.theme-light {
 html.theme-dark,
 body.theme-dark {
   color-scheme: dark;
-  --bg: #0b132b;
-  --surface: #1e293b;
-  --surface-2: #1c2541;
-  --text: #e8f1ff;
-  --muted: #a9bddc;
-  --faint: #5d6e8c;
+  --bg: #05060a;
+  --surface: rgba(18, 20, 28, 0.46);
+  --surface-2: rgba(28, 30, 40, 0.55);
+  --text: #f2f4f8;
+  --muted: #aeb6c6;
+  --faint: #6a7284;
   --weekend: #f0b4ae;
   --accent: #7dd3fc;
-  --accent-2: rgba(125, 211, 252, 0.16);
-  --on-accent: #0b132b;
-  --border: rgba(232, 241, 255, 0.1);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+  --accent-2: rgba(125, 211, 252, 0.14);
+  --on-accent: #061018;
+  --border: rgba(255, 255, 255, 0.12);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   --overlay: rgba(3, 6, 16, 0.72);
   --toast-bg: #e8f1ff;
   --toast-text: #0b132b;
-  --c-practice-ink: var(--c-practice);
-  --c-theory-ink: #e4eeff;
-  --c-split-ink: #ffc4c4;
+  --c-practice-ink: color-mix(in srgb, var(--c-practice) 68%, white);
+  --c-theory-ink: color-mix(in srgb, var(--c-theory) 68%, white);
+  --c-split-ink: color-mix(in srgb, var(--c-split) 68%, white);
   --c-soon: #ff7b7b;
   --c-ending: #48d484;
   --c-note: #ffe14a;
@@ -664,6 +664,16 @@ html.look-standard .week-short {
   gap: 10px;
 }
 
+/* Пока высота дня меняется, обрезка шире неона, поэтому свечение не становится квадратным. */
+html.day-sizing { overflow-x: hidden; }
+
+#dayBody.is-sizing {
+  box-sizing: content-box;
+  overflow: hidden;
+  margin: -56px;
+  padding: 56px;
+}
+
 .lesson {
   position: relative;
   background: var(--surface);
@@ -912,14 +922,18 @@ html.look-standard .week-short {
 html.theme-dark .badge-theory,
 body.theme-dark .badge-theory {
   background: color-mix(in srgb, var(--c-theory) 28%, transparent);
-  color: #7eb6ff;
+  color: var(--c-theory-ink);
 }
 
 html.theme-dark .badge-split,
 body.theme-dark .badge-split {
   background: color-mix(in srgb, var(--c-split) 28%, transparent);
-  color: #ff8d8d;
+  color: var(--c-split-ink);
 }
+
+html.theme-dark .legend span:nth-child(1) { color: var(--c-practice-ink); }
+html.theme-dark .legend span:nth-child(2) { color: var(--c-theory-ink); }
+html.theme-dark .legend span:nth-child(3) { color: var(--c-split-ink); }
 
 .chevron {
   flex: 0 0 auto;
@@ -1286,9 +1300,18 @@ html:not(.in-telegram) .btn-install { display: none; }
 .settings-modal {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   max-height: min(82vh, 720px);
+}
+
+.settings-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 18px;
 }
 
 .color-grid {
@@ -1493,6 +1516,11 @@ html.need-link #notice { display: none !important; }
 
 .overlay.is-shown .modal { transform: translateY(0); }
 
+#settings .modal.settings-modal {
+  overflow: hidden;
+  padding: 0;
+}
+
 .modal-head {
   display: flex;
   align-items: center;
@@ -1592,8 +1620,8 @@ body.modal-open {
 
 html.look-standard body {
   background:
-    radial-gradient(120% 320px at 0% calc(-40px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, var(--c-theory) 26%, transparent), transparent 70%),
-    radial-gradient(90% 280px at 100% calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, var(--c-practice) 18%, transparent), transparent 68%),
+    radial-gradient(120% 320px at 0% calc(-40px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #3b8bfd 26%, transparent), transparent 70%),
+    radial-gradient(90% 280px at 100% calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #48d484 18%, transparent), transparent 68%),
     var(--bg);
 }
 
@@ -1650,4 +1678,314 @@ html.look-standard .day.is-today.is-selected {
     inset 0 0 0 2px var(--text),
     inset 0 0 0 4px var(--accent),
     0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Тёмная тема: чёрный фон, огни ближе к центру, стекло как на экране телефона. */
+html.theme-dark.look-standard {
+  --neon-a: color-mix(in srgb, #3b8bfd 42%, transparent);
+  --neon-b: color-mix(in srgb, #48d484 34%, transparent);
+  --neon-c: color-mix(in srgb, #e8c98a 28%, transparent);
+  --rim:
+    radial-gradient(92vw 72vh at 30% 26%, color-mix(in srgb, #3b8bfd 78%, white), transparent 82%),
+    radial-gradient(88vw 68vh at 74% 46%, color-mix(in srgb, #48d484 72%, white), transparent 84%),
+    radial-gradient(72vw 56vh at 52% 70%, color-mix(in srgb, #f0d7a2 62%, white), transparent 86%);
+}
+
+html.theme-dark.look-standard body {
+  background:
+    radial-gradient(92vw 72vh at 30% 26%, var(--neon-a), transparent 82%),
+    radial-gradient(88vw 68vh at 74% 46%, var(--neon-b), transparent 84%),
+    radial-gradient(72vw 56vh at 52% 70%, var(--neon-c), transparent 86%),
+    var(--bg);
+}
+
+html.theme-dark .lesson,
+html.theme-dark .calendar,
+html.theme-dark .countdown,
+html.theme-dark .modal,
+html.theme-dark .week-cell,
+html.theme-dark .stats {
+  position: relative;
+  background: rgba(16, 18, 26, 0.42);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+
+html.theme-dark .cal-viewport { background: transparent; }
+
+html.theme-dark.look-standard .lesson::after,
+html.theme-dark.look-standard .calendar::after,
+html.theme-dark.look-standard .countdown::after,
+html.theme-dark.look-standard .modal::after,
+html.theme-dark.look-standard .week-cell::after,
+html.theme-dark.look-standard .stats::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--rim);
+  background-attachment: fixed;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+html.theme-dark.look-standard .lesson:not(.is-past) {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark .lesson.is-past,
+html.theme-dark.look-standard .lesson.is-past {
+  background: rgba(10, 12, 18, 0.1);
+  box-shadow: none;
+  opacity: 0.48;
+}
+
+html.theme-dark.look-standard .lesson.is-past::after { opacity: 0.28; }
+
+html.theme-dark .lesson.kind-practice { border-left-color: var(--c-practice); }
+html.theme-dark .lesson.kind-theory { border-left-color: var(--c-theory); }
+html.theme-dark .lesson.kind-split { border-left-color: var(--c-split); }
+
+html.theme-dark.look-standard .lesson.kind-practice::before,
+html.theme-dark.look-standard .lesson.kind-theory::before,
+html.theme-dark.look-standard .lesson.kind-split::before,
+html.theme-light.look-standard .lesson.kind-practice::before,
+html.theme-light.look-standard .lesson.kind-theory::before,
+html.theme-light.look-standard .lesson.kind-split::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -22px -46px -22px 22%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+html.theme-dark.look-standard .lesson.kind-practice::before,
+html.theme-light.look-standard .lesson.kind-practice::before {
+  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-practice) 20%, transparent), transparent 72%);
+}
+
+html.theme-dark.look-standard .lesson.kind-theory::before,
+html.theme-light.look-standard .lesson.kind-theory::before {
+  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-theory) 20%, transparent), transparent 72%);
+}
+
+html.theme-dark.look-standard .lesson.kind-split::before,
+html.theme-light.look-standard .lesson.kind-split::before {
+  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-split) 20%, transparent), transparent 72%);
+}
+
+html.theme-dark.look-standard .lesson.is-past::before,
+html.theme-light.look-standard .lesson.is-past::before { opacity: 0.35; }
+
+html.theme-dark.look-standard .lesson.kind-practice:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-practice) 50%, transparent),
+    10px 0 28px color-mix(in srgb, var(--c-practice) 12%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-standard .lesson.kind-theory:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-theory) 55%, transparent),
+    10px 0 28px color-mix(in srgb, var(--c-theory) 12%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-standard .lesson.kind-split:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-split) 50%, transparent),
+    10px 0 28px color-mix(in srgb, var(--c-split) 12%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+/* Светлая тема: тот же неон и стекло, фон остаётся светлым. */
+html.theme-light.look-standard {
+  --neon-a: color-mix(in srgb, #3b8bfd 28%, transparent);
+  --neon-b: color-mix(in srgb, #48d484 22%, transparent);
+  --neon-c: color-mix(in srgb, #e8c98a 16%, transparent);
+  --rim:
+    radial-gradient(92vw 72vh at 30% 26%, color-mix(in srgb, #3b8bfd 70%, white), transparent 82%),
+    radial-gradient(88vw 68vh at 74% 46%, color-mix(in srgb, #48d484 64%, white), transparent 84%),
+    radial-gradient(72vw 56vh at 52% 70%, color-mix(in srgb, #e7c27a 55%, white), transparent 86%);
+}
+
+html.theme-light.look-standard body {
+  background:
+    radial-gradient(92vw 72vh at 30% 26%, var(--neon-a), transparent 82%),
+    radial-gradient(88vw 68vh at 74% 46%, var(--neon-b), transparent 84%),
+    radial-gradient(72vw 56vh at 52% 70%, var(--neon-c), transparent 86%),
+    var(--bg);
+}
+
+html.theme-light .lesson,
+html.theme-light .calendar,
+html.theme-light .countdown,
+html.theme-light .modal,
+html.theme-light .week-cell,
+html.theme-light .stats {
+  position: relative;
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 28px rgba(18, 24, 38, 0.06);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+
+html.theme-light .cal-viewport { background: transparent; }
+
+html.theme-light.look-standard .lesson::after,
+html.theme-light.look-standard .calendar::after,
+html.theme-light.look-standard .countdown::after,
+html.theme-light.look-standard .modal::after,
+html.theme-light.look-standard .week-cell::after,
+html.theme-light.look-standard .stats::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--rim);
+  background-attachment: fixed;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+html.theme-light.look-standard .lesson:not(.is-past) {
+  box-shadow: 0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light .lesson.is-past,
+html.theme-light.look-standard .lesson.is-past {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  opacity: 0.5;
+}
+
+html.theme-light.look-standard .lesson.is-past::after { opacity: 0.35; }
+
+html.theme-light .lesson.kind-practice { border-left-color: var(--c-practice); }
+html.theme-light .lesson.kind-theory { border-left-color: var(--c-theory); }
+html.theme-light .lesson.kind-split { border-left-color: var(--c-split); }
+
+html.theme-light.look-standard .lesson.kind-practice:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-practice) 42%, transparent),
+    10px 0 26px color-mix(in srgb, var(--c-practice) 10%, transparent),
+    0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-standard .lesson.kind-theory:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-theory) 48%, transparent),
+    10px 0 26px color-mix(in srgb, var(--c-theory) 10%, transparent),
+    0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-standard .lesson.kind-split:not(.is-past) {
+  box-shadow:
+    -6px 0 16px color-mix(in srgb, var(--c-split) 42%, transparent),
+    10px 0 26px color-mix(in srgb, var(--c-split) 10%, transparent),
+    0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+/* Упрощённый вид без неона: панели плотнее и светлее, чтобы не терялись на фоне. */
+html.theme-dark.look-simple,
+body.theme-dark.look-simple {
+  --bg: #141820;
+  --surface: #242a38;
+  --surface-2: #2e3648;
+  --border: rgba(255, 255, 255, 0.16);
+  --accent-2: rgba(125, 211, 252, 0.18);
+}
+
+html.theme-light.look-simple,
+body.theme-light.look-simple {
+  --bg: #f8fafd;
+  --surface: #ffffff;
+  --surface-2: #f4f7fc;
+  --border: #e4eaf3;
+}
+
+html.theme-dark.look-simple .lesson,
+html.theme-dark.look-simple .calendar,
+html.theme-dark.look-simple .countdown,
+html.theme-dark.look-simple .modal,
+html.theme-dark.look-simple .week-cell,
+html.theme-dark.look-simple .stats {
+  background: #242a38;
+  border-color: rgba(255, 255, 255, 0.14);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.theme-dark.look-simple .lesson.is-past {
+  background: #1c2230;
+  opacity: 0.72;
+}
+
+html.theme-light.look-simple .lesson,
+html.theme-light.look-simple .calendar,
+html.theme-light.look-simple .countdown,
+html.theme-light.look-simple .modal,
+html.theme-light.look-simple .week-cell,
+html.theme-light.look-simple .stats {
+  background: #ffffff;
+  border-color: #e4eaf3;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.theme-light.look-simple .lesson.is-past {
+  background: #f7f9fc;
+  opacity: 0.72;
+}
+
+html.theme-dark.look-simple .lesson.kind-practice,
+html.theme-light.look-simple .lesson.kind-practice { border-left-color: var(--c-practice); }
+
+html.theme-dark.look-simple .lesson.kind-theory,
+html.theme-light.look-simple .lesson.kind-theory { border-left-color: var(--c-theory); }
+
+html.theme-dark.look-simple .lesson.kind-split,
+html.theme-light.look-simple .lesson.kind-split { border-left-color: var(--c-split); }
+
+html.theme-dark .week-cell.is-selected,
+html.theme-light .week-cell.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+html.theme-dark.look-standard .week-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 24%, rgba(16, 18, 26, 0.72));
+  box-shadow: inset 0 0 0 2px var(--accent), 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-simple .week-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 22%, #242a38);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+html.theme-light.look-standard .week-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 16%, rgba(255, 255, 255, 0.82));
+  box-shadow: inset 0 0 0 2px var(--accent), 0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-simple .week-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 14%, #ffffff);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }

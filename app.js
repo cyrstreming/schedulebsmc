@@ -432,11 +432,13 @@ function applyLook() {
 }
 
 function applyColors() {
-  const root = document.documentElement.style;
   const map = { practice: "--c-practice", theory: "--c-theory", split: "--c-split" };
-  for (const [key, variable] of Object.entries(map)) {
-    if (state.colors[key]) root.setProperty(variable, state.colors[key]);
-    else root.removeProperty(variable);
+  for (const node of [document.documentElement, document.body]) {
+    if (!node) continue;
+    for (const [key, variable] of Object.entries(map)) {
+      if (state.colors[key]) node.style.setProperty(variable, state.colors[key]);
+      else node.style.removeProperty(variable);
+    }
   }
 }
 
@@ -2581,11 +2583,7 @@ function createLessonCard(lesson, index) {
   return article;
 }
 
-/**
- * Высота списка анимируется, поэтому календарь под ним не прыгает,
- * когда в выбранном дне другое число пар.
- */
-/** Раскрытие пары и высота дня идут одним переходом, без скачка календаря. */
+/** Раскрытие пары меняет только её высоту и не обрезает неон карточек. */
 function toggleLesson(article, panel, head) {
   const open = !article.classList.contains("is-open");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2612,20 +2610,12 @@ function toggleLesson(article, panel, head) {
   panel.style.height = "auto";
   const full = panel.scrollHeight;
   panel.style.height = `${currentPanel}px`;
-  const fromDay = dayBody.getBoundingClientRect().height;
   article.classList.toggle("is-open", open);
   panel.inert = !open;
   head.setAttribute("aria-expanded", open ? "true" : "false");
-  const delta = open ? full - currentPanel : -currentPanel;
-  dayBody.style.overflow = "hidden";
-  dayBody.style.transition = "none";
-  dayBody.style.height = `${fromDay}px`;
   void panel.offsetHeight;
-  const motion = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
-  panel.style.transition = motion;
-  dayBody.style.transition = motion;
+  panel.style.transition = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
   panel.style.height = open ? `${full}px` : "0px";
-  dayBody.style.height = `${Math.max(0, fromDay + delta)}px`;
   const done = (event) => {
     if (event.propertyName !== "height") return;
     panel.removeEventListener("transitionend", done);
@@ -2654,6 +2644,8 @@ function releaseDayHeight() {
     dayBody.removeEventListener("transitionend", dayBody._onHeight);
     dayBody._onHeight = null;
   }
+  dayBody.classList.remove("is-sizing");
+  document.documentElement.classList.remove("day-sizing");
   dayBody.style.transition = "none";
   dayBody.style.height = "";
   dayBody.style.overflow = "";
@@ -2670,7 +2662,8 @@ function placeDayContent(fragment, isEmpty) {
   if (reduce) return;
   const next = dayBody.scrollHeight;
   if (previous < 2 || Math.abs(previous - next) < 2) return;
-  dayBody.style.overflow = "hidden";
+  document.documentElement.classList.add("day-sizing");
+  dayBody.classList.add("is-sizing");
   dayBody.style.height = `${previous}px`;
   window.requestAnimationFrame(() => {
     dayBody.style.transition = "height 0.4s ease";
@@ -2682,7 +2675,7 @@ function placeDayContent(fragment, isEmpty) {
   };
   dayBody._onHeight = done;
   dayBody.addEventListener("transitionend", done);
-  dayBody._heightTimer = window.setTimeout(releaseDayHeight, 450);
+  dayBody._heightTimer = window.setTimeout(releaseDayHeight, 480);
 }
 
 function renderDetails() {
