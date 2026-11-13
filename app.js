@@ -2942,28 +2942,9 @@ function closeOnBackdrop(overlay, close) {
   });
 }
 
-let scrollLocked = false;
-let lockedScroll = 0;
-
 function syncModal() {
   const open = !notice.hidden || !groupPicker.hidden || !pickMenu.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
-  if (open && !scrollLocked) {
-    lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
-    scrollLocked = true;
-    document.body.style.top = `-${lockedScroll}px`;
-    document.body.classList.add("modal-open");
-    syncSheetScroll(true);
-    return;
-  }
-  if (!open && scrollLocked) {
-    const y = lockedScroll;
-    scrollLocked = false;
-    document.body.classList.remove("modal-open");
-    document.body.style.top = "";
-    window.scrollTo(0, y);
-    syncSheetScroll(false);
-    return;
-  }
+  if (!open) document.body.style.top = "";
   document.body.classList.toggle("modal-open", open);
   syncSheetScroll(open);
 }

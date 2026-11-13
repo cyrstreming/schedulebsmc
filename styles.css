@@ -1581,11 +1581,11 @@ textarea::placeholder { color: var(--faint); }
   transform: translateX(-50%) translateY(0);
 }
 
+html:has(body.modal-open) {
+  overflow: hidden;
+}
+
 body.modal-open {
-  position: fixed;
-  left: 0;
-  right: 0;
-  width: 100%;
   min-height: 100dvh;
   overflow: hidden;
 }
@@ -1869,7 +1869,6 @@ html.ios.look-standard .lesson::after,
 html.ios.look-standard .week-cell::after,
 html.ios.look-standard .calendar::after,
 html.ios.look-standard .countdown::after,
-html.ios.look-standard .modal::after,
 html.ios.look-standard .stats::after {
   content: "";
   position: absolute;
