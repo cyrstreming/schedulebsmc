@@ -705,6 +705,7 @@ function editsPayload() {
 }
 
 function replaceEdits(items, added) {
+  invalidateLessons();
   for (const key of Object.keys(edits)) delete edits[key];
   Object.assign(edits, items || {});
   addedLessons.splice(0, addedLessons.length, ...(added || []));
@@ -727,6 +728,7 @@ async function restoreEdits() {
 }
 
 function saveEdits() {
+  invalidateLessons();
   editsSavedAt = Date.now();
   const payload = editsPayload();
   try { localStorage.setItem(EDITS_KEY, payload); } catch (error) { /* хранилище может быть запрещено */ }
@@ -1230,8 +1232,20 @@ function lessonMatchesSubgroup(lesson) {
   return lesson.kind === "split" && state.subgroup === "3" && number === "2";
 }
 
+let lessonStamp = 0;
+let lessonCache = null;
+let lessonCacheKey = "";
+
+function invalidateLessons() {
+  lessonStamp += 1;
+}
+
 function filteredLessons() {
-  return sourceLessons().map(viewLesson).filter(Boolean).filter(lessonMatchesSubgroup).sort(compareLessons);
+  const key = `${state.group}\0${state.teacher}\0${state.subgroup}\0${lessonStamp}`;
+  if (lessonCache && lessonCacheKey === key) return lessonCache;
+  lessonCache = sourceLessons().map(viewLesson).filter(Boolean).filter(lessonMatchesSubgroup).sort(compareLessons);
+  lessonCacheKey = key;
+  return lessonCache;
 }
 
 /** Неделя считается от понедельника той недели, в которую попадает 1 сентября. */
@@ -1378,10 +1392,15 @@ function formatAhead(mins) {
  * Если до него больше 15 часов, строка скрыта.
  * Красный — до начала 30 минут и меньше. Зелёный — до конца 10 минут и меньше.
  */
+let pastStamp = "";
+
 function refreshPastLessons() {
   const now = new Date();
   const today = formatISO(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const stamp = `${today}:${nowMinutes}`;
+  if (stamp === pastStamp) return;
+  pastStamp = stamp;
   for (const article of lessonsBox.querySelectorAll(".lesson")) {
     const hasTime = article.dataset.start != null && article.dataset.end != null;
     const start = Number(article.dataset.start);
@@ -1455,13 +1474,17 @@ function lessonBrief(lesson) {
 }
 
 function fillCountdown(title, briefs) {
+  const detailText = briefs.join(" · ");
+  const line = countdownText.firstElementChild;
+  const detail = line && line.nextElementSibling;
+  if (line && detail && line.textContent === title && detail.textContent === detailText) return;
   countdownText.replaceChildren();
-  const line = document.createElement("span");
-  line.textContent = title;
-  const detail = document.createElement("span");
-  detail.className = "countdown-lesson";
-  detail.textContent = briefs.join(" · ");
-  countdownText.append(line, detail);
+  const nextLine = document.createElement("span");
+  nextLine.textContent = title;
+  const nextDetail = document.createElement("span");
+  nextDetail.className = "countdown-lesson";
+  nextDetail.textContent = detailText;
+  countdownText.append(nextLine, nextDetail);
 }
 
 function setToday() {
@@ -2938,6 +2961,7 @@ function syncModal() {
     scrollLocked = true;
     document.body.style.top = `-${lockedScroll}px`;
     document.body.classList.add("modal-open");
+    syncSheetScroll(true);
     return;
   }
   if (!open && scrollLocked) {
@@ -2946,9 +2970,25 @@ function syncModal() {
     document.body.classList.remove("modal-open");
     document.body.style.top = "";
     window.scrollTo(0, y);
+    syncSheetScroll(false);
     return;
   }
   document.body.classList.toggle("modal-open", open);
+  syncSheetScroll(open);
+}
+
+let sheetScrollBound = false;
+
+function syncSheetScroll(open) {
+  if (open && !sheetScrollBound) {
+    document.addEventListener("touchmove", holdSheetScroll, { passive: false });
+    sheetScrollBound = true;
+    return;
+  }
+  if (!open && sheetScrollBound) {
+    document.removeEventListener("touchmove", holdSheetScroll);
+    sheetScrollBound = false;
+  }
 }
 
 /* Жест по окну не прокручивает расписание под ним. */
@@ -3609,10 +3649,14 @@ function bindEvents() {
   closeOnBackdrop(resetDayDialog, closeResetDay);
   closeOnBackdrop(conflictDialog, closeConflict);
   document.addEventListener("pointerdown", dismissKeyboard);
-  document.addEventListener("touchstart", dismissKeyboard, { passive: false });
   document.addEventListener("touchstart", rememberSheetTouch, { passive: true });
-  document.addEventListener("touchmove", holdSheetScroll, { passive: false });
-  document.addEventListener("focusin", guardKeyboardFocus);
+  document.addEventListener("focusin", (event) => {
+    guardKeyboardFocus(event);
+    if (isTextField(event.target)) document.addEventListener("touchstart", dismissKeyboard, { passive: false });
+  });
+  document.addEventListener("focusout", (event) => {
+    if (isTextField(event.target)) document.removeEventListener("touchstart", dismissKeyboard);
+  });
 
   addOther.addEventListener("click", () => {
     addCustomSubject = !addCustomSubject;

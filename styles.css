@@ -678,6 +678,7 @@ html.day-sizing { overflow-x: hidden; }
 
 .lesson {
   position: relative;
+  contain: layout style;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left-width: 4px;
