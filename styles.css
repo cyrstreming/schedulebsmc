@@ -728,13 +728,6 @@ html.day-sizing { overflow-x: hidden; }
   opacity: 0.7;
 }
 
-.lessons.is-fresh { animation: rise 0.28s ease; }
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .lesson-top {
   display: flex;
   align-items: stretch;
@@ -1617,37 +1610,12 @@ body.modal-open {
   .countdown,
   .time-fill,
   #dayBody,
-  .lessons,
   .overlay,
   .overlay .modal { animation: none; transition: none; }
 }
 
-html.look-standard {
-  background:
-    radial-gradient(120% 320px at 0% calc(-40px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #3b8bfd 26%, transparent), transparent 70%),
-    radial-gradient(90% 280px at 100% calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #48d484 18%, transparent), transparent 68%),
-    var(--bg);
-}
-
 html.look-standard .logo {
   box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
-html.look-standard .lesson:not(.is-past) {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--glow, var(--accent)) 55%, transparent),
-    inset 0 0 28px color-mix(in srgb, var(--glow, var(--accent)) 16%, transparent);
-}
-
-html.look-standard .lesson.kind-practice { --glow: var(--c-practice); }
-html.look-standard .lesson.kind-theory { --glow: var(--c-theory); }
-html.look-standard .lesson.kind-split { --glow: var(--c-split); }
-
-html.look-standard .lesson.is-past {
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--past, var(--muted)) 22%, var(--surface)) 0%, color-mix(in srgb, var(--muted) 8%, var(--surface)) 48%, var(--surface) 100%);
-  border-left-color: color-mix(in srgb, var(--past, var(--muted)) 45%, var(--border));
-  box-shadow: inset 0 0 18px color-mix(in srgb, var(--past, var(--muted)) 12%, transparent);
 }
 
 html.look-standard .lesson.is-past .meta,
@@ -1660,11 +1628,6 @@ html.look-standard .lesson.is-past .badge:not(.badge-split):not(.badge-note):not
   color: var(--muted);
 }
 
-html.look-standard .countdown {
-  box-shadow: 0 0 24px color-mix(in srgb, currentColor 18%, transparent);
-}
-
-html.look-standard .calendar,
 html.look-standard select {
   box-shadow:
     var(--shadow),

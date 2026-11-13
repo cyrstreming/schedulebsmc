@@ -691,15 +691,6 @@ let editingId = "";
 let purgingId = "";
 let pendingConflict = null;
 
-function loadNotesFrom(key) {
-  try {
-    const payload = parseNotesPayload(localStorage.getItem(key));
-    return payload || { savedAt: 0, items: {} };
-  } catch (error) {
-    return { savedAt: 0, items: {} };
-  }
-}
-
 function editsPayload() {
   return JSON.stringify({ savedAt: editsSavedAt, items: edits, added: addedLessons });
 }
