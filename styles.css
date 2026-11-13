@@ -1682,11 +1682,9 @@ html.theme-dark .stats {
 
 html.theme-dark .cal-viewport { background: transparent; }
 
-html.theme-dark.look-standard .lesson::after,
 html.theme-dark.look-standard .calendar::after,
 html.theme-dark.look-standard .countdown::after,
 html.theme-dark.look-standard .modal::after,
-html.theme-dark.look-standard .week-cell::after,
 html.theme-dark.look-standard .stats::after {
   content: "";
   position: absolute;
@@ -1695,15 +1693,12 @@ html.theme-dark.look-standard .stats::after {
   border-radius: inherit;
   padding: 1px;
   background: var(--rim);
-  background-attachment: fixed;
   pointer-events: none;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
 }
-
-html.theme-dark.look-standard .lesson::after { opacity: 0.42; }
 
 html.theme-dark.look-standard .lesson:not(.is-past) {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
@@ -1721,19 +1716,41 @@ html.theme-dark.look-standard .lesson.kind-split:not(.is-past) {
   box-shadow: -3px 0 6px color-mix(in srgb, var(--c-split) 22%, transparent), 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
-html.theme-dark .lesson.is-past,
-html.theme-dark.look-standard .lesson.is-past {
+html.theme-dark .lesson.is-past {
   background: rgba(10, 12, 18, 0.1);
   box-shadow: none;
   opacity: 0.48;
 }
 
-html.theme-dark.look-standard .lesson.is-past::after { opacity: 0.28; }
+html.theme-dark.look-standard .lesson.is-past {
+  background: rgba(16, 18, 26, 0.74);
+  box-shadow: none;
+  opacity: 0.48;
+}
 
 html.theme-dark.look-standard .lesson {
-  background: rgba(16, 18, 26, 0.66);
-  backdrop-filter: blur(8px) saturate(1.15);
-  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  background: rgba(16, 18, 26, 0.74);
+  border-color: rgba(206, 218, 234, 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.theme-dark.look-standard .week-cell {
+  background: rgba(18, 20, 28, 0.74);
+  border-color: rgba(206, 218, 234, 0.2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.ios.theme-dark.look-standard .lesson,
+html.ios.theme-dark.look-standard .week-cell {
+  background: rgba(16, 18, 26, 0.52);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+
+html.ios.theme-dark.look-standard .lesson.is-past {
+  background: rgba(16, 18, 26, 0.52);
 }
 
 html.theme-dark .lesson.kind-practice { border-left-color: var(--c-practice); }
@@ -1777,11 +1794,9 @@ html.theme-light .stats {
 
 html.theme-light .cal-viewport { background: transparent; }
 
-html.theme-light.look-standard .lesson::after,
 html.theme-light.look-standard .calendar::after,
 html.theme-light.look-standard .countdown::after,
 html.theme-light.look-standard .modal::after,
-html.theme-light.look-standard .week-cell::after,
 html.theme-light.look-standard .stats::after {
   content: "";
   position: absolute;
@@ -1790,15 +1805,12 @@ html.theme-light.look-standard .stats::after {
   border-radius: inherit;
   padding: 1px;
   background: var(--rim);
-  background-attachment: fixed;
   pointer-events: none;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
 }
-
-html.theme-light.look-standard .lesson::after { opacity: 0.4; }
 
 html.theme-light.look-standard .lesson:not(.is-past) {
   box-shadow: 0 10px 28px rgba(18, 24, 38, 0.06);
@@ -1816,19 +1828,41 @@ html.theme-light.look-standard .lesson.kind-split:not(.is-past) {
   box-shadow: -3px 0 6px color-mix(in srgb, var(--c-split) 16%, transparent), 0 10px 28px rgba(18, 24, 38, 0.06);
 }
 
-html.theme-light .lesson.is-past,
-html.theme-light.look-standard .lesson.is-past {
+html.theme-light .lesson.is-past {
   background: rgba(255, 255, 255, 0.22);
   box-shadow: none;
   opacity: 0.5;
 }
 
-html.theme-light.look-standard .lesson.is-past::after { opacity: 0.35; }
+html.theme-light.look-standard .lesson.is-past {
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: none;
+  opacity: 0.5;
+}
 
 html.theme-light.look-standard .lesson {
-  background: rgba(255, 255, 255, 0.74);
-  backdrop-filter: blur(8px) saturate(1.15);
-  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  background: rgba(255, 255, 255, 0.76);
+  border-color: rgba(150, 166, 190, 0.38);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.theme-light.look-standard .week-cell {
+  background: rgba(255, 255, 255, 0.76);
+  border-color: rgba(150, 166, 190, 0.34);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.ios.theme-light.look-standard .lesson,
+html.ios.theme-light.look-standard .week-cell {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+
+html.ios.theme-light.look-standard .lesson.is-past {
+  background: rgba(255, 255, 255, 0.55);
 }
 
 html.theme-light .lesson.kind-practice { border-left-color: var(--c-practice); }
