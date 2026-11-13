@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=76">
+  <link rel="stylesheet" href="styles.css?v=79">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -56,6 +56,17 @@
       if (colors.theory) root.style.setProperty("--c-theory", colors.theory);
       if (colors.split) root.style.setProperty("--c-split", colors.split);
       if (prefs.warnOnOpen === false) root.classList.add("no-entry-warn");
+      var background = dark
+        ? (prefs.look === "simple" ? "#141820" : "#05060a")
+        : (prefs.look === "simple" ? "#f8fafd" : "#f4f6fb");
+      var themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", background);
+      if (tg) {
+        try { tg.setHeaderColor(background); } catch (error) { /* старые клиенты */ }
+        try { tg.setBackgroundColor(background); } catch (error) { /* старые клиенты */ }
+        try { tg.setBottomBarColor(background); } catch (error) { /* старые клиенты */ }
+        try { if (typeof tg.expand === "function") tg.expand(); } catch (error) { /* клиент без разворота */ }
+      }
     })();
   </script>
 </head>
@@ -184,7 +195,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
-      <p class="app-version" id="appVersion">Версия: 1.74.76</p>
+      <p class="app-version" id="appVersion">Версия: 1.75.79</p>
     </div>
   </div>
 
@@ -568,7 +579,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=74"></script>
+  <script type="module" src="app.js?v=75"></script>
   <script>
     (function () {
       function fileVersion(url) {

@@ -398,13 +398,20 @@ function resolvedScheme() {
   return state.theme === "light" || state.theme === "dark" ? state.theme : systemScheme();
 }
 
+function themeBackground(scheme) {
+  const dark = scheme === "dark";
+  const simple = state.look === "simple";
+  if (dark) return simple ? "#141820" : "#05060a";
+  return simple ? "#f8fafd" : "#f4f6fb";
+}
+
 function applyTheme(scheme) {
   const dark = scheme === "dark";
   document.documentElement.classList.toggle("theme-dark", dark);
   document.documentElement.classList.toggle("theme-light", !dark);
   document.body.classList.toggle("theme-dark", dark);
   document.body.classList.toggle("theme-light", !dark);
-  const background = dark ? "#0b132b" : "#f4f6fb";
+  const background = themeBackground(scheme);
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.content = background;
   if (!tg) return;
@@ -3242,6 +3249,7 @@ function setThemeChoice(theme) {
 function setLookChoice(look) {
   state.look = look;
   applyLook();
+  applyTheme(resolvedScheme());
   saveState();
   syncSettingsControls();
 }

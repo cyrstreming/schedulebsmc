@@ -60,6 +60,7 @@ body.theme-dark {
 html, body {
   margin: 0;
   min-height: 100%;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
 }
@@ -87,16 +88,17 @@ input:focus-visible {
 
 .app {
   width: min(520px, 100%);
+  min-height: 100dvh;
   margin: 0 auto;
   padding:
     calc(20px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px))
     calc(16px + var(--tg-safe-area-inset-right, 0px) + var(--tg-content-safe-area-inset-right, 0px))
-    calc(28px + env(safe-area-inset-bottom) + var(--tg-safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px))
+    calc(28px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) + min(var(--tg-content-safe-area-inset-bottom, 0px), 64px))
     calc(16px + var(--tg-safe-area-inset-left, 0px) + var(--tg-content-safe-area-inset-left, 0px));
 }
 
 .loader {
-  min-height: 70vh;
+  min-height: 70dvh;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -664,14 +666,14 @@ html.look-standard .week-short {
   gap: 10px;
 }
 
-/* Пока высота дня меняется, обрезка шире неона, поэтому свечение не становится квадратным. */
+/* Пока высота дня меняется, обрезка чуть шире тени карточки. */
 html.day-sizing { overflow-x: hidden; }
 
 #dayBody.is-sizing {
   box-sizing: content-box;
   overflow: hidden;
-  margin: -56px;
-  padding: 56px;
+  margin: -28px;
+  padding: 28px;
 }
 
 .lesson {
@@ -682,7 +684,7 @@ html.day-sizing { overflow-x: hidden; }
   border-left-color: var(--border);
   border-radius: 18px;
   box-shadow: var(--shadow);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .lesson.kind-practice { border-left-color: var(--c-practice); }
@@ -1590,6 +1592,7 @@ body.modal-open {
   left: 0;
   right: 0;
   width: 100%;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -1618,7 +1621,7 @@ body.modal-open {
   .overlay .modal { animation: none; transition: none; }
 }
 
-html.look-standard body {
+html.look-standard {
   background:
     radial-gradient(120% 320px at 0% calc(-40px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #3b8bfd 26%, transparent), transparent 70%),
     radial-gradient(90% 280px at 100% calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)), color-mix(in srgb, #48d484 18%, transparent), transparent 68%),
@@ -1691,7 +1694,7 @@ html.theme-dark.look-standard {
     radial-gradient(72vw 56vh at 52% 70%, color-mix(in srgb, #f0d7a2 62%, white), transparent 86%);
 }
 
-html.theme-dark.look-standard body {
+html.theme-dark.look-standard {
   background:
     radial-gradient(92vw 72vh at 30% 26%, var(--neon-a), transparent 82%),
     radial-gradient(88vw 68vh at 74% 46%, var(--neon-b), transparent 84%),
@@ -1736,8 +1739,22 @@ html.theme-dark.look-standard .stats::after {
   mask-composite: exclude;
 }
 
+html.theme-dark.look-standard .lesson::after { opacity: 0.42; }
+
 html.theme-dark.look-standard .lesson:not(.is-past) {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-standard .lesson.kind-practice:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-practice) 22%, transparent), 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-standard .lesson.kind-theory:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-theory) 22%, transparent), 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.theme-dark.look-standard .lesson.kind-split:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-split) 22%, transparent), 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 html.theme-dark .lesson.is-past,
@@ -1749,63 +1766,15 @@ html.theme-dark.look-standard .lesson.is-past {
 
 html.theme-dark.look-standard .lesson.is-past::after { opacity: 0.28; }
 
+html.theme-dark.look-standard .lesson {
+  background: rgba(16, 18, 26, 0.66);
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+}
+
 html.theme-dark .lesson.kind-practice { border-left-color: var(--c-practice); }
 html.theme-dark .lesson.kind-theory { border-left-color: var(--c-theory); }
 html.theme-dark .lesson.kind-split { border-left-color: var(--c-split); }
-
-html.theme-dark.look-standard .lesson.kind-practice::before,
-html.theme-dark.look-standard .lesson.kind-theory::before,
-html.theme-dark.look-standard .lesson.kind-split::before,
-html.theme-light.look-standard .lesson.kind-practice::before,
-html.theme-light.look-standard .lesson.kind-theory::before,
-html.theme-light.look-standard .lesson.kind-split::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -22px -46px -22px 22%;
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0.85;
-}
-
-html.theme-dark.look-standard .lesson.kind-practice::before,
-html.theme-light.look-standard .lesson.kind-practice::before {
-  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-practice) 20%, transparent), transparent 72%);
-}
-
-html.theme-dark.look-standard .lesson.kind-theory::before,
-html.theme-light.look-standard .lesson.kind-theory::before {
-  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-theory) 20%, transparent), transparent 72%);
-}
-
-html.theme-dark.look-standard .lesson.kind-split::before,
-html.theme-light.look-standard .lesson.kind-split::before {
-  background: radial-gradient(closest-side at 78% 50%, color-mix(in srgb, var(--c-split) 20%, transparent), transparent 72%);
-}
-
-html.theme-dark.look-standard .lesson.is-past::before,
-html.theme-light.look-standard .lesson.is-past::before { opacity: 0.35; }
-
-html.theme-dark.look-standard .lesson.kind-practice:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-practice) 50%, transparent),
-    10px 0 28px color-mix(in srgb, var(--c-practice) 12%, transparent),
-    0 10px 28px rgba(0, 0, 0, 0.28);
-}
-
-html.theme-dark.look-standard .lesson.kind-theory:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-theory) 55%, transparent),
-    10px 0 28px color-mix(in srgb, var(--c-theory) 12%, transparent),
-    0 10px 28px rgba(0, 0, 0, 0.28);
-}
-
-html.theme-dark.look-standard .lesson.kind-split:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-split) 50%, transparent),
-    10px 0 28px color-mix(in srgb, var(--c-split) 12%, transparent),
-    0 10px 28px rgba(0, 0, 0, 0.28);
-}
 
 /* Светлая тема: тот же неон и стекло, фон остаётся светлым. */
 html.theme-light.look-standard {
@@ -1818,13 +1787,15 @@ html.theme-light.look-standard {
     radial-gradient(72vw 56vh at 52% 70%, color-mix(in srgb, #e7c27a 55%, white), transparent 86%);
 }
 
-html.theme-light.look-standard body {
+html.theme-light.look-standard {
   background:
     radial-gradient(92vw 72vh at 30% 26%, var(--neon-a), transparent 82%),
     radial-gradient(88vw 68vh at 74% 46%, var(--neon-b), transparent 84%),
     radial-gradient(72vw 56vh at 52% 70%, var(--neon-c), transparent 86%),
     var(--bg);
 }
+
+html.look-standard body { background: transparent; }
 
 html.theme-light .lesson,
 html.theme-light .calendar,
@@ -1863,8 +1834,22 @@ html.theme-light.look-standard .stats::after {
   mask-composite: exclude;
 }
 
+html.theme-light.look-standard .lesson::after { opacity: 0.4; }
+
 html.theme-light.look-standard .lesson:not(.is-past) {
   box-shadow: 0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-standard .lesson.kind-practice:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-practice) 16%, transparent), 0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-standard .lesson.kind-theory:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-theory) 16%, transparent), 0 10px 28px rgba(18, 24, 38, 0.06);
+}
+
+html.theme-light.look-standard .lesson.kind-split:not(.is-past) {
+  box-shadow: -3px 0 6px color-mix(in srgb, var(--c-split) 16%, transparent), 0 10px 28px rgba(18, 24, 38, 0.06);
 }
 
 html.theme-light .lesson.is-past,
@@ -1876,30 +1861,15 @@ html.theme-light.look-standard .lesson.is-past {
 
 html.theme-light.look-standard .lesson.is-past::after { opacity: 0.35; }
 
+html.theme-light.look-standard .lesson {
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+}
+
 html.theme-light .lesson.kind-practice { border-left-color: var(--c-practice); }
 html.theme-light .lesson.kind-theory { border-left-color: var(--c-theory); }
 html.theme-light .lesson.kind-split { border-left-color: var(--c-split); }
-
-html.theme-light.look-standard .lesson.kind-practice:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-practice) 42%, transparent),
-    10px 0 26px color-mix(in srgb, var(--c-practice) 10%, transparent),
-    0 10px 28px rgba(18, 24, 38, 0.06);
-}
-
-html.theme-light.look-standard .lesson.kind-theory:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-theory) 48%, transparent),
-    10px 0 26px color-mix(in srgb, var(--c-theory) 10%, transparent),
-    0 10px 28px rgba(18, 24, 38, 0.06);
-}
-
-html.theme-light.look-standard .lesson.kind-split:not(.is-past) {
-  box-shadow:
-    -6px 0 16px color-mix(in srgb, var(--c-split) 42%, transparent),
-    10px 0 26px color-mix(in srgb, var(--c-split) 10%, transparent),
-    0 10px 28px rgba(18, 24, 38, 0.06);
-}
 
 /* Упрощённый вид без неона: панели плотнее и светлее, чтобы не терялись на фоне. */
 html.theme-dark.look-simple,
