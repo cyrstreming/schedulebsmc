@@ -1313,6 +1313,67 @@ html:not(.in-telegram) .btn-install { display: none; }
   padding: 18px;
 }
 
+.settings-block {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.settings-block summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-block summary::-webkit-details-marker { display: none; }
+
+.settings-block summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translateY(-2px);
+  flex: 0 0 auto;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-block[open] summary::after { transform: rotate(225deg) translateY(-2px); }
+
+.settings-block > .settings-block-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+}
+
+.settings-block[open] > .settings-block-body { grid-template-rows: 1fr; }
+
+.settings-block-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 12px;
+}
+
+.settings-block[open] > .settings-block-body > .settings-block-inner { padding-bottom: 14px; }
+
+.check-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-block-body .btn { margin-top: 8px; }
+
 .color-grid {
   display: grid;
   gap: 8px;
@@ -1611,8 +1672,18 @@ body.modal-open {
   .time-fill,
   #dayBody,
   .overlay,
-  .overlay .modal { animation: none; transition: none; }
+  .overlay .modal,
+  .settings-block > .settings-block-body,
+  .settings-block summary::after { animation: none; transition: none; }
 }
+
+html.no-a-lesson .lesson-panel,
+html.no-a-lesson .chevron,
+html.no-a-days .day,
+html.no-a-windows .overlay,
+html.no-a-windows .overlay .modal,
+html.no-a-windows .settings-block > .settings-block-body,
+html.no-a-windows .settings-block summary::after { animation: none; transition: none; }
 
 html.look-standard .logo {
   box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent);

@@ -65,6 +65,13 @@ const state = {
   showTeacher: false,
   showSubgroup: false,
   showKind: true,
+  motion: {
+    lesson: true,
+    day: true,
+    calendar: true,
+    days: true,
+    windows: true
+  },
   blockOrder: "schedule",
   weekView: false,
   warnOnOpen: true,
@@ -235,6 +242,7 @@ const orderChoices = document.querySelector("#orderChoices");
 const showTeacher = document.querySelector("#showTeacher");
 const showSubgroup = document.querySelector("#showSubgroup");
 const showKind = document.querySelector("#showKind");
+const MOTION_KEYS = ["lesson", "day", "calendar", "days", "windows"];
 const warnOnOpen = document.querySelector("#warnOnOpen");
 const syncStatus = document.querySelector("#syncStatus");
 const syncCodeButton = document.querySelector("#syncCodeButton");
@@ -773,6 +781,8 @@ function saveState() {
     showTeacher: state.showTeacher,
     showSubgroup: state.showSubgroup,
     showKind: state.showKind,
+    motion: { ...state.motion },
+    animations: MOTION_KEYS.every((key) => state.motion[key] !== false),
     blockOrder: state.blockOrder,
     warnOnOpen: state.warnOnOpen,
     subgroupMenu: 3,
@@ -784,6 +794,7 @@ function saveState() {
     .every((key) => JSON.stringify(previous[key]) === JSON.stringify(next[key]))
     && (previous.heldSubgroup || "") === (next.heldSubgroup || "")
     && (previous.showKind !== false) === next.showKind
+    && MOTION_KEYS.every((key) => motionEnabled(previous, key) === (next.motion[key] !== false))
     && JSON.stringify(previous.colors || {}) === JSON.stringify(next.colors);
   if (!same) filtersSavedAt = Date.now();
   next.savedAt = filtersSavedAt;
@@ -832,6 +843,8 @@ function cloudSnapshot() {
       showTeacher: state.showTeacher,
       showSubgroup: state.showSubgroup,
       showKind: state.showKind,
+      motion: { ...state.motion },
+      animations: MOTION_KEYS.every((key) => state.motion[key] !== false),
       blockOrder: state.blockOrder,
       warnOnOpen: state.warnOnOpen,
       subgroupMenu: 3,
@@ -902,6 +915,7 @@ function applyCloudFilters(remote) {
   applyColors();
   syncFilterVisibility();
   document.documentElement.classList.toggle("no-entry-warn", !state.warnOnOpen);
+  applyMotion();
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...remote, savedAt: filtersSavedAt, group: state.group, teacher: state.teacher }));
   } catch (error) { /* местная копия необязательна */ }
@@ -1699,7 +1713,7 @@ function adoptIncomingMonth(direction) {
 
 /** Доводит уже видимый соседний месяц до конца и оставляет его на месте. */
 function slideToMonth(direction) {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduce = !motionOn("calendar");
   clearSlide();
   if (reduce) {
     changeMonth(direction);
@@ -2629,7 +2643,7 @@ function releaseDayHeight() {
 }
 
 function placeDayContent(fragment, isEmpty) {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduce = !motionOn("day");
   releaseDayHeight();
   const previous = dayBody.getBoundingClientRect().height;
   if (reduce || previous < 2) {
@@ -2866,8 +2880,21 @@ function guardKeyboardFocus(event) {
 
 const overlayHide = new WeakMap();
 
-function motionReduced() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function motionEnabled(source, key) {
+  const motion = source && source.motion;
+  if (motion && typeof motion === "object" && Object.prototype.hasOwnProperty.call(motion, key)) {
+    return motion[key] !== false;
+  }
+  return !source || source.animations !== false;
+}
+
+function motionOn(key) {
+  return state.motion[key] !== false && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function applyMotion() {
+  const root = document.documentElement;
+  for (const key of MOTION_KEYS) root.classList.toggle(`no-a-${key}`, state.motion[key] === false);
 }
 
 /* Окно проявляется и уходит, а не появляется сразу. */
@@ -2883,7 +2910,7 @@ function showOverlay(overlay) {
     syncModal();
     return;
   }
-  if (motionReduced()) {
+  if (!motionOn("windows")) {
     overlay.classList.add("is-shown");
     syncModal();
     return;
@@ -2915,7 +2942,7 @@ function hideOverlay(overlay, done) {
     syncModal();
     if (done) done();
   };
-  if (motionReduced() || !overlay.classList.contains("is-shown")) {
+  if (!motionOn("windows") || !overlay.classList.contains("is-shown")) {
     finish();
     return;
   }
@@ -3172,6 +3199,9 @@ function syncSettingsControls() {
   showTeacher.checked = state.showTeacher;
   showSubgroup.checked = state.showSubgroup;
   showKind.checked = state.showKind;
+  for (const input of document.querySelectorAll("[data-motion]")) {
+    input.checked = state.motion[input.dataset.motion] !== false;
+  }
   if ([...settingsGroup.options].some((option) => option.value === state.group)) settingsGroup.value = state.group;
   if ([...settingsSubgroup.options].some((option) => option.value === state.subgroup)) settingsSubgroup.value = state.subgroup;
   warnOnOpen.checked = state.warnOnOpen;
@@ -3189,6 +3219,57 @@ function openSettings() {
   syncSettingsControls();
   syncCloudPanel();
   showOverlay(settings);
+}
+
+/** Высота раздела и окна меняются одним движением и при открытии, и при закрытии. */
+function finishSettingsBlock(block) {
+  window.clearTimeout(block._sheetTimer);
+  block._sheetTimer = 0;
+  if (block._sheetDone) {
+    block.removeEventListener("transitionend", block._sheetDone);
+    block._sheetDone = null;
+  }
+  const body = block.querySelector(".settings-block-body");
+  if (body) body.style.gridTemplateRows = "";
+  block.style.height = "";
+  block.style.transition = "";
+  block.style.overflow = "";
+}
+
+function animateSettingsBlock(block, from) {
+  if (!motionOn("windows")) {
+    finishSettingsBlock(block);
+    return;
+  }
+  window.clearTimeout(block._sheetTimer);
+  if (block._sheetDone) {
+    block.removeEventListener("transitionend", block._sheetDone);
+    block._sheetDone = null;
+  }
+  const body = block.querySelector(".settings-block-body");
+  const closing = !block.open;
+  if (closing && body) body.style.gridTemplateRows = "1fr";
+  block.style.transition = "none";
+  block.style.height = "auto";
+  block.style.overflow = "hidden";
+  if (closing && body) body.style.gridTemplateRows = "";
+  const to = block.offsetHeight;
+  if (closing && body) body.style.gridTemplateRows = "1fr";
+  block.style.height = `${from}px`;
+  if (Math.abs(to - from) < 1) {
+    finishSettingsBlock(block);
+    return;
+  }
+  void block.offsetHeight;
+  const done = (frame) => {
+    if (frame.target !== block || frame.propertyName !== "height") return;
+    finishSettingsBlock(block);
+  };
+  block._sheetDone = done;
+  block.addEventListener("transitionend", done);
+  block._sheetTimer = window.setTimeout(() => finishSettingsBlock(block), 460);
+  block.style.transition = "height 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
+  block.style.height = `${to}px`;
 }
 
 function closeFeedback() {
@@ -3484,6 +3565,15 @@ function bindEvents() {
 
   settingsButton.addEventListener("click", openSettings);
   settingsClose.addEventListener("click", closeSettings);
+  settings.addEventListener("click", (event) => {
+    const summary = event.target.closest(".settings-block summary");
+    if (!summary || !motionOn("windows")) return;
+    const block = summary.parentElement;
+    const from = block.getBoundingClientRect().height;
+    block.style.transition = "none";
+    block.style.height = `${from}px`;
+    window.setTimeout(() => animateSettingsBlock(block, from), 0);
+  }, true);
   themeChoices.addEventListener("click", (event) => {
     const button = event.target.closest("[data-theme]");
     if (button) setThemeChoice(button.dataset.theme);
@@ -3529,6 +3619,13 @@ function bindEvents() {
     saveState();
     render();
   });
+  for (const input of document.querySelectorAll("[data-motion]")) {
+    input.addEventListener("change", () => {
+      state.motion[input.dataset.motion] = input.checked;
+      applyMotion();
+      saveState();
+    });
+  }
   warnOnOpen.addEventListener("change", () => {
     state.warnOnOpen = warnOnOpen.checked;
     document.documentElement.classList.toggle("no-entry-warn", !state.warnOnOpen);
@@ -3681,6 +3778,7 @@ function readPrefs(prefs) {
   }
   state.blockOrder = prefs.blockOrder === "calendar" ? "calendar" : "schedule";
   state.showKind = prefs.showKind !== false;
+  state.motion = Object.fromEntries(MOTION_KEYS.map((key) => [key, motionEnabled(prefs, key)]));
   state.warnOnOpen = prefs.warnOnOpen !== false;
   filtersSavedAt = Number(prefs.savedAt) || filtersSavedAt;
   const colors = prefs.colors && typeof prefs.colors === "object" ? prefs.colors : {};
@@ -3692,6 +3790,7 @@ function readPrefs(prefs) {
 async function init() {
   const prefs = loadPrefs();
   readPrefs(prefs);
+  applyMotion();
   applyTheme(resolvedScheme());
   applyLook();
   applyColors();

@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=96">
+  <link rel="stylesheet" href="styles.css?v=105">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -59,6 +59,15 @@
       if (colors.theory) root.style.setProperty("--c-theory", colors.theory);
       if (colors.split) root.style.setProperty("--c-split", colors.split);
       if (prefs.warnOnOpen === false) root.classList.add("no-entry-warn");
+      var motionKeys = ["lesson", "day", "calendar", "days", "windows"];
+      var motion = prefs.motion && typeof prefs.motion === "object" ? prefs.motion : null;
+      for (var mi = 0; mi < motionKeys.length; mi++) {
+        var motionKey = motionKeys[mi];
+        var motionOff = motion && Object.prototype.hasOwnProperty.call(motion, motionKey)
+          ? motion[motionKey] === false
+          : prefs.animations === false;
+        if (motionOff) root.classList.add("no-a-" + motionKey);
+      }
       var background = dark
         ? (prefs.look === "simple" ? "#141820" : "#05060a")
         : (prefs.look === "simple" ? "#f8fafd" : "#f4f6fb");
@@ -198,7 +207,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
-      <p class="app-version" id="appVersion">Версия: 1.91.96</p>
+      <p class="app-version" id="appVersion">Версия: 1.102.105</p>
     </div>
   </div>
 
@@ -281,24 +290,76 @@
         </button>
       </div>
 
-      <p class="field-label">Тема</p>
-      <div class="choice-row" id="themeChoices">
-        <button type="button" data-theme="system">Как в системе</button>
-        <button type="button" data-theme="light">Светлая</button>
-        <button type="button" data-theme="dark">Тёмная</button>
-      </div>
+      <details class="settings-block">
+        <summary>Внешний вид</summary>
+        <div class="settings-block-body"><div class="settings-block-inner">
+          <div>
+            <p class="field-label">Тема</p>
+            <div class="choice-row" id="themeChoices">
+              <button type="button" data-theme="system">Как в системе</button>
+              <button type="button" data-theme="light">Светлая</button>
+              <button type="button" data-theme="dark">Тёмная</button>
+            </div>
+          </div>
+          <div>
+            <p class="field-label">Сверху</p>
+            <div class="choice-row" id="orderChoices">
+              <button type="button" data-order="schedule">Расписание</button>
+              <button type="button" data-order="calendar">Календарь</button>
+            </div>
+          </div>
+          <div>
+            <p class="field-label">Списки на главном экране</p>
+            <div class="check-stack">
+              <label class="check-row"><span>Группа</span><span class="switch"><input type="checkbox" id="showGroup"><span></span></span></label>
+              <label class="check-row"><span>Подгруппа</span><span class="switch"><input type="checkbox" id="showSubgroup"><span></span></span></label>
+              <label class="check-row"><span>Преподаватель</span><span class="switch"><input type="checkbox" id="showTeacher"><span></span></span></label>
+            </div>
+          </div>
+          <div>
+            <p class="field-label">При входе</p>
+            <label class="check-row"><span>Предупреждение о неточности</span><span class="switch"><input type="checkbox" id="warnOnOpen"><span></span></span></label>
+          </div>
+          <div>
+            <p class="field-label">Цвета занятий</p>
+            <div class="color-grid">
+              <label>Практика <input type="color" id="colorPractice" value="#48d484"></label>
+              <label>Теория <input type="color" id="colorTheory" value="#3b8bfd"></label>
+              <label>Теория по подгруппам <input type="color" id="colorSplit" value="#d93b3b"></label>
+            </div>
+            <button type="button" class="btn btn-quiet" id="colorReset">Сбросить цвета</button>
+          </div>
+          <div>
+            <p class="field-label">Другое</p>
+            <label class="check-row"><span>Показывать тип занятия</span><span class="switch"><input type="checkbox" id="showKind"><span></span></span></label>
+          </div>
+          </div>
+        </div>
+      </details>
 
-      <p class="field-label">Вид</p>
-      <div class="choice-row" id="lookChoices">
-        <button type="button" data-look="standard">Стандартный</button>
-        <button type="button" data-look="simple">Упрощённый</button>
-      </div>
-
-      <p class="field-label">Сверху</p>
-      <div class="choice-row" id="orderChoices">
-        <button type="button" data-order="schedule">Расписание</button>
-        <button type="button" data-order="calendar">Календарь</button>
-      </div>
+      <details class="settings-block">
+        <summary>Оптимизация</summary>
+        <div class="settings-block-body"><div class="settings-block-inner">
+          <div>
+            <p class="field-label">Вид</p>
+            <div class="choice-row" id="lookChoices">
+              <button type="button" data-look="standard">Стандартный</button>
+              <button type="button" data-look="simple">Упрощённый</button>
+            </div>
+          </div>
+          <div>
+            <p class="field-label">Анимации</p>
+            <div class="check-stack">
+              <label class="check-row"><span>Раскрытие пары</span><span class="switch"><input type="checkbox" data-motion="lesson" checked><span></span></span></label>
+              <label class="check-row"><span>Смена дня и недели</span><span class="switch"><input type="checkbox" data-motion="day" checked><span></span></span></label>
+              <label class="check-row"><span>Листание календаря</span><span class="switch"><input type="checkbox" data-motion="calendar" checked><span></span></span></label>
+              <label class="check-row"><span>Подсветка</span><span class="switch"><input type="checkbox" data-motion="days" checked><span></span></span></label>
+              <label class="check-row"><span>Окна</span><span class="switch"><input type="checkbox" data-motion="windows" checked><span></span></span></label>
+            </div>
+          </div>
+          </div>
+        </div>
+      </details>
 
       <label class="field" id="settingsGroupField"><span>Группа</span>
         <div class="select-wrap"><select id="settingsGroup"></select></div>
@@ -314,14 +375,6 @@
         </div>
       </label>
 
-      <p class="field-label">Списки на главном экране</p>
-      <label class="check-row"><span>Группа</span><span class="switch"><input type="checkbox" id="showGroup"><span></span></span></label>
-      <label class="check-row"><span>Подгруппа</span><span class="switch"><input type="checkbox" id="showSubgroup"><span></span></span></label>
-      <label class="check-row"><span>Преподаватель</span><span class="switch"><input type="checkbox" id="showTeacher"><span></span></span></label>
-
-      <p class="field-label">При входе</p>
-      <label class="check-row"><span>Предупреждение о неточности</span><span class="switch"><input type="checkbox" id="warnOnOpen"><span></span></span></label>
-
       <div id="saveSettings">
         <p class="field-label">Сохранение</p>
         <p class="hint" id="retentionHint">Если не заходить в приложение месяц, все ваши изменения удаляются.</p>
@@ -333,17 +386,6 @@
           <p class="hint link-result" id="settingsLinkStatus"></p>
         </form>
       </div>
-
-      <p class="field-label">Цвета занятий</p>
-      <div class="color-grid">
-        <label>Практика <input type="color" id="colorPractice" value="#48d484"></label>
-        <label>Теория <input type="color" id="colorTheory" value="#3b8bfd"></label>
-        <label>Теория по подгруппам <input type="color" id="colorSplit" value="#d93b3b"></label>
-      </div>
-      <button type="button" class="btn btn-quiet" id="colorReset">Сбросить цвета</button>
-
-      <p class="field-label">Другое</p>
-      <label class="check-row"><span>Показывать тип занятия</span><span class="switch"><input type="checkbox" id="showKind"><span></span></span></label>
       </div>
     </div>
   </div>
@@ -582,7 +624,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=91"></script>
+  <script type="module" src="app.js?v=102"></script>
   <script>
     (function () {
       function fileVersion(url) {
