@@ -398,13 +398,20 @@ function resolvedScheme() {
   return state.theme === "light" || state.theme === "dark" ? state.theme : systemScheme();
 }
 
+function themeBackground(scheme) {
+  const dark = scheme === "dark";
+  const simple = state.look === "simple";
+  if (dark) return simple ? "#141820" : "#05060a";
+  return simple ? "#f8fafd" : "#f4f6fb";
+}
+
 function applyTheme(scheme) {
   const dark = scheme === "dark";
   document.documentElement.classList.toggle("theme-dark", dark);
   document.documentElement.classList.toggle("theme-light", !dark);
   document.body.classList.toggle("theme-dark", dark);
   document.body.classList.toggle("theme-light", !dark);
-  const background = dark ? "#0b132b" : "#f4f6fb";
+  const background = themeBackground(scheme);
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.content = background;
   if (!tg) return;
@@ -432,11 +439,13 @@ function applyLook() {
 }
 
 function applyColors() {
-  const root = document.documentElement.style;
   const map = { practice: "--c-practice", theory: "--c-theory", split: "--c-split" };
-  for (const [key, variable] of Object.entries(map)) {
-    if (state.colors[key]) root.setProperty(variable, state.colors[key]);
-    else root.removeProperty(variable);
+  for (const node of [document.documentElement, document.body]) {
+    if (!node) continue;
+    for (const [key, variable] of Object.entries(map)) {
+      if (state.colors[key]) node.style.setProperty(variable, state.colors[key]);
+      else node.style.removeProperty(variable);
+    }
   }
 }
 
@@ -682,20 +691,12 @@ let editingId = "";
 let purgingId = "";
 let pendingConflict = null;
 
-function loadNotesFrom(key) {
-  try {
-    const payload = parseNotesPayload(localStorage.getItem(key));
-    return payload || { savedAt: 0, items: {} };
-  } catch (error) {
-    return { savedAt: 0, items: {} };
-  }
-}
-
 function editsPayload() {
   return JSON.stringify({ savedAt: editsSavedAt, items: edits, added: addedLessons });
 }
 
 function replaceEdits(items, added) {
+  invalidateLessons();
   for (const key of Object.keys(edits)) delete edits[key];
   Object.assign(edits, items || {});
   addedLessons.splice(0, addedLessons.length, ...(added || []));
@@ -718,6 +719,7 @@ async function restoreEdits() {
 }
 
 function saveEdits() {
+  invalidateLessons();
   editsSavedAt = Date.now();
   const payload = editsPayload();
   try { localStorage.setItem(EDITS_KEY, payload); } catch (error) { /* хранилище может быть запрещено */ }
@@ -1221,8 +1223,20 @@ function lessonMatchesSubgroup(lesson) {
   return lesson.kind === "split" && state.subgroup === "3" && number === "2";
 }
 
+let lessonStamp = 0;
+let lessonCache = null;
+let lessonCacheKey = "";
+
+function invalidateLessons() {
+  lessonStamp += 1;
+}
+
 function filteredLessons() {
-  return sourceLessons().map(viewLesson).filter(Boolean).filter(lessonMatchesSubgroup).sort(compareLessons);
+  const key = `${state.group}\0${state.teacher}\0${state.subgroup}\0${lessonStamp}`;
+  if (lessonCache && lessonCacheKey === key) return lessonCache;
+  lessonCache = sourceLessons().map(viewLesson).filter(Boolean).filter(lessonMatchesSubgroup).sort(compareLessons);
+  lessonCacheKey = key;
+  return lessonCache;
 }
 
 /** Неделя считается от понедельника той недели, в которую попадает 1 сентября. */
@@ -1369,10 +1383,15 @@ function formatAhead(mins) {
  * Если до него больше 15 часов, строка скрыта.
  * Красный — до начала 30 минут и меньше. Зелёный — до конца 10 минут и меньше.
  */
+let pastStamp = "";
+
 function refreshPastLessons() {
   const now = new Date();
   const today = formatISO(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const stamp = `${today}:${nowMinutes}`;
+  if (stamp === pastStamp) return;
+  pastStamp = stamp;
   for (const article of lessonsBox.querySelectorAll(".lesson")) {
     const hasTime = article.dataset.start != null && article.dataset.end != null;
     const start = Number(article.dataset.start);
@@ -1446,13 +1465,17 @@ function lessonBrief(lesson) {
 }
 
 function fillCountdown(title, briefs) {
+  const detailText = briefs.join(" · ");
+  const line = countdownText.firstElementChild;
+  const detail = line && line.nextElementSibling;
+  if (line && detail && line.textContent === title && detail.textContent === detailText) return;
   countdownText.replaceChildren();
-  const line = document.createElement("span");
-  line.textContent = title;
-  const detail = document.createElement("span");
-  detail.className = "countdown-lesson";
-  detail.textContent = briefs.join(" · ");
-  countdownText.append(line, detail);
+  const nextLine = document.createElement("span");
+  nextLine.textContent = title;
+  const nextDetail = document.createElement("span");
+  nextDetail.className = "countdown-lesson";
+  nextDetail.textContent = detailText;
+  countdownText.append(nextLine, nextDetail);
 }
 
 function setToday() {
@@ -2581,11 +2604,7 @@ function createLessonCard(lesson, index) {
   return article;
 }
 
-/**
- * Высота списка анимируется, поэтому календарь под ним не прыгает,
- * когда в выбранном дне другое число пар.
- */
-/** Раскрытие пары и высота дня идут одним переходом, без скачка календаря. */
+/** Раскрытие пары меняет только её высоту и не обрезает неон карточек. */
 function toggleLesson(article, panel, head) {
   const open = !article.classList.contains("is-open");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2612,20 +2631,12 @@ function toggleLesson(article, panel, head) {
   panel.style.height = "auto";
   const full = panel.scrollHeight;
   panel.style.height = `${currentPanel}px`;
-  const fromDay = dayBody.getBoundingClientRect().height;
   article.classList.toggle("is-open", open);
   panel.inert = !open;
   head.setAttribute("aria-expanded", open ? "true" : "false");
-  const delta = open ? full - currentPanel : -currentPanel;
-  dayBody.style.overflow = "hidden";
-  dayBody.style.transition = "none";
-  dayBody.style.height = `${fromDay}px`;
   void panel.offsetHeight;
-  const motion = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
-  panel.style.transition = motion;
-  dayBody.style.transition = motion;
+  panel.style.transition = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
   panel.style.height = open ? `${full}px` : "0px";
-  dayBody.style.height = `${Math.max(0, fromDay + delta)}px`;
   const done = (event) => {
     if (event.propertyName !== "height") return;
     panel.removeEventListener("transitionend", done);
@@ -2654,6 +2665,8 @@ function releaseDayHeight() {
     dayBody.removeEventListener("transitionend", dayBody._onHeight);
     dayBody._onHeight = null;
   }
+  dayBody.classList.remove("is-sizing");
+  document.documentElement.classList.remove("day-sizing");
   dayBody.style.transition = "none";
   dayBody.style.height = "";
   dayBody.style.overflow = "";
@@ -2668,12 +2681,12 @@ function placeDayContent(fragment, isEmpty) {
   emptyBox.hidden = !isEmpty;
   lessonsBox.replaceChildren(fragment);
   if (reduce) return;
-  const next = dayBody.scrollHeight;
+  const next = dayBody.getBoundingClientRect().height;
   if (previous < 2 || Math.abs(previous - next) < 2) return;
   dayBody.style.overflow = "hidden";
   dayBody.style.height = `${previous}px`;
   window.requestAnimationFrame(() => {
-    dayBody.style.transition = "height 0.4s ease";
+    dayBody.style.transition = "height 0.34s cubic-bezier(0.22, 1, 0.36, 1)";
     dayBody.style.height = `${next}px`;
   });
   const done = (event) => {
@@ -2682,7 +2695,7 @@ function placeDayContent(fragment, isEmpty) {
   };
   dayBody._onHeight = done;
   dayBody.addEventListener("transitionend", done);
-  dayBody._heightTimer = window.setTimeout(releaseDayHeight, 450);
+  dayBody._heightTimer = window.setTimeout(releaseDayHeight, 420);
 }
 
 function renderDetails() {
@@ -2791,8 +2804,9 @@ function renderWeek() {
 }
 
 function scrollToSchedule() {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  results.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  const rect = dayTitle.getBoundingClientRect();
+  if (rect.top >= 0 && rect.bottom <= window.innerHeight) return;
+  results.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 function render() {
@@ -2804,12 +2818,28 @@ function render() {
   renderDetails();
 }
 
+function markSelectedDay() {
+  for (const button of calendar.querySelectorAll("[data-date]")) {
+    const on = button.dataset.date === state.selected;
+    button.classList.toggle("is-selected", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  syncTodayButton();
+}
+
 function selectDate(iso, shouldScroll) {
   const date = parseISO(iso);
+  const sameMonth = state.year === date.getFullYear() && state.month === date.getMonth();
   state.selected = iso;
   state.year = date.getFullYear();
   state.month = date.getMonth();
-  render();
+  if (sameMonth) {
+    markSelectedDay();
+    renderCountdown();
+    renderDetails();
+  } else {
+    render();
+  }
   if (shouldScroll) scrollToSchedule();
 }
 
@@ -2928,27 +2958,37 @@ function closeOnBackdrop(overlay, close) {
   });
 }
 
-let scrollLocked = false;
-let lockedScroll = 0;
-
 function syncModal() {
   const open = !notice.hidden || !groupPicker.hidden || !pickMenu.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
-  if (open && !scrollLocked) {
-    lockedScroll = window.scrollY || document.documentElement.scrollTop || 0;
-    scrollLocked = true;
-    document.body.style.top = `-${lockedScroll}px`;
-    document.body.classList.add("modal-open");
-    return;
-  }
-  if (!open && scrollLocked) {
-    const y = lockedScroll;
-    scrollLocked = false;
-    document.body.classList.remove("modal-open");
-    document.body.style.top = "";
-    window.scrollTo(0, y);
-    return;
-  }
   document.body.classList.toggle("modal-open", open);
+  document.body.style.top = "";
+  document.body.style.position = "";
+  syncSheetScroll(open);
+}
+
+function holdSheetWheel(event) {
+  if (!document.body.classList.contains("modal-open")) return;
+  const overlay = event.target.closest(".overlay");
+  if (!overlay || overlay.hidden) return;
+  const modal = overlay.querySelector(".modal");
+  const scroller = modal && modal.contains(event.target) ? sheetScroller(event.target, modal) : null;
+  if (!scroller) event.preventDefault();
+}
+
+let sheetScrollBound = false;
+
+function syncSheetScroll(open) {
+  if (open && !sheetScrollBound) {
+    document.addEventListener("touchmove", holdSheetScroll, { passive: false });
+    document.addEventListener("wheel", holdSheetWheel, { passive: false });
+    sheetScrollBound = true;
+    return;
+  }
+  if (!open && sheetScrollBound) {
+    document.removeEventListener("touchmove", holdSheetScroll);
+    document.removeEventListener("wheel", holdSheetWheel);
+    sheetScrollBound = false;
+  }
 }
 
 /* Жест по окну не прокручивает расписание под ним. */
@@ -3249,6 +3289,7 @@ function setThemeChoice(theme) {
 function setLookChoice(look) {
   state.look = look;
   applyLook();
+  applyTheme(resolvedScheme());
   saveState();
   syncSettingsControls();
 }
@@ -3608,10 +3649,14 @@ function bindEvents() {
   closeOnBackdrop(resetDayDialog, closeResetDay);
   closeOnBackdrop(conflictDialog, closeConflict);
   document.addEventListener("pointerdown", dismissKeyboard);
-  document.addEventListener("touchstart", dismissKeyboard, { passive: false });
   document.addEventListener("touchstart", rememberSheetTouch, { passive: true });
-  document.addEventListener("touchmove", holdSheetScroll, { passive: false });
-  document.addEventListener("focusin", guardKeyboardFocus);
+  document.addEventListener("focusin", (event) => {
+    guardKeyboardFocus(event);
+    if (isTextField(event.target)) document.addEventListener("touchstart", dismissKeyboard, { passive: false });
+  });
+  document.addEventListener("focusout", (event) => {
+    if (isTextField(event.target)) document.removeEventListener("touchstart", dismissKeyboard);
+  });
 
   addOther.addEventListener("click", () => {
     addCustomSubject = !addCustomSubject;

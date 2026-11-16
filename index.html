@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=60">
+  <link rel="stylesheet" href="styles.css?v=89">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -49,6 +49,9 @@
         dark = theme === "dark";
       }
       var root = document.documentElement;
+      var apple = /iPad|iPhone|iPod/.test(navigator.userAgent || "")
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (apple) root.classList.add("ios");
       root.classList.add(dark ? "theme-dark" : "theme-light");
       root.classList.add(prefs.look === "simple" ? "look-simple" : "look-standard");
       var colors = prefs.colors || {};
@@ -56,6 +59,17 @@
       if (colors.theory) root.style.setProperty("--c-theory", colors.theory);
       if (colors.split) root.style.setProperty("--c-split", colors.split);
       if (prefs.warnOnOpen === false) root.classList.add("no-entry-warn");
+      var background = dark
+        ? (prefs.look === "simple" ? "#141820" : "#05060a")
+        : (prefs.look === "simple" ? "#f8fafd" : "#f4f6fb");
+      var themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", background);
+      if (tg) {
+        try { tg.setHeaderColor(background); } catch (error) { /* старые клиенты */ }
+        try { tg.setBackgroundColor(background); } catch (error) { /* старые клиенты */ }
+        try { tg.setBottomBarColor(background); } catch (error) { /* старые клиенты */ }
+        try { if (typeof tg.expand === "function") tg.expand(); } catch (error) { /* клиент без разворота */ }
+      }
     })();
   </script>
 </head>
@@ -184,7 +198,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
-      <p class="app-version" id="appVersion">Версия: 1.71.60</p>
+      <p class="app-version" id="appVersion">Версия: 1.81.89</p>
     </div>
   </div>
 
@@ -257,6 +271,7 @@
 
   <div class="overlay settings-overlay" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
     <div class="modal settings-modal">
+      <div class="settings-scroll">
       <div class="sheet-head">
         <h2 id="settingsTitle">Настройки</h2>
         <button type="button" class="icon-btn" id="settingsClose" aria-label="Закрыть">
@@ -329,6 +344,7 @@
 
       <p class="field-label">Другое</p>
       <label class="check-row"><span>Показывать тип занятия</span><span class="switch"><input type="checkbox" id="showKind"><span></span></span></label>
+      </div>
     </div>
   </div>
 
@@ -566,7 +582,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=71"></script>
+  <script type="module" src="app.js?v=81"></script>
   <script>
     (function () {
       function fileVersion(url) {
