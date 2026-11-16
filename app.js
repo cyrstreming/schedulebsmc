@@ -2496,8 +2496,8 @@ function noteField(lesson, chips) {
 
 /**
  * Аккордеон: свёрнутая карточка — это кнопка, раскрытие не перезагружает список.
- * Высота растёт через grid-template-rows. Календарь при этом не подменяется снимком
- * и не теряет размытие. Повторный клик сворачивает ту же карточку.
+ * Высота растёт через grid-template-rows, страница при этом не прячется.
+ * Повторный клик сворачивает ту же карточку.
  * Внизу раскрытой карточки — номер этого занятия по предмету и сколько их ещё осталось.
  */
 function createLessonCard(lesson, index) {
@@ -2628,19 +2628,42 @@ function releaseDayHeight() {
   dayBody.style.transition = "";
 }
 
-function placeDayContent(fragment, isEmpty, instant) {
+function placeDayContent(fragment, isEmpty) {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   releaseDayHeight();
   const previous = dayBody.getBoundingClientRect().height;
+  if (reduce || previous < 2) {
+    emptyBox.hidden = !isEmpty;
+    lessonsBox.replaceChildren(fragment);
+    return;
+  }
+  const oldNodes = document.createDocumentFragment();
+  oldNodes.append(...lessonsBox.childNodes);
+  const emptyWas = emptyBox.hidden;
   emptyBox.hidden = !isEmpty;
   lessonsBox.replaceChildren(fragment);
-  if (reduce || instant) return;
   const next = dayBody.getBoundingClientRect().height;
-  if (previous < 2 || Math.abs(previous - next) < 2) return;
+  const fresh = document.createDocumentFragment();
+  fresh.append(...lessonsBox.childNodes);
+  lessonsBox.replaceChildren(oldNodes);
+  emptyBox.hidden = emptyWas;
+  if (Math.abs(previous - next) < 12) {
+    emptyBox.hidden = !isEmpty;
+    lessonsBox.replaceChildren(fresh);
+    if (reduce) return;
+    const fade = lessonsBox.animate(
+      [{ opacity: 0 }, { opacity: 1 }],
+      { duration: 220, easing: "ease" }
+    );
+    fade.onfinish = () => fade.cancel();
+    return;
+  }
+  emptyBox.hidden = !isEmpty;
+  lessonsBox.replaceChildren(fresh);
   dayBody.style.overflow = "hidden";
   dayBody.style.height = `${previous}px`;
   window.requestAnimationFrame(() => {
-    dayBody.style.transition = "height 0.34s cubic-bezier(0.22, 1, 0.36, 1)";
+    dayBody.style.transition = "height 0.32s cubic-bezier(0.22, 1, 0.36, 1)";
     dayBody.style.height = `${next}px`;
   });
   const done = (event) => {
@@ -2652,8 +2675,6 @@ function placeDayContent(fragment, isEmpty, instant) {
   dayBody._heightTimer = window.setTimeout(releaseDayHeight, 420);
 }
 
-let renderedWeek = false;
-
 function renderDetails() {
   document.title = state.teacher !== "all"
     ? `Расписание · ${state.teacher}`
@@ -2661,10 +2682,8 @@ function renderDetails() {
   syncWeekButton();
   syncDayTools();
   dayTools.hidden = state.weekView;
-  const switchView = renderedWeek !== state.weekView;
-  renderedWeek = state.weekView;
   if (state.weekView) {
-    renderWeek(switchView);
+    renderWeek();
     return;
   }
   const dayLessons = filteredLessons().filter((lesson) => lesson.date === state.selected);
@@ -2677,14 +2696,14 @@ function renderDetails() {
 
   if (!dayLessons.length) {
     dayCount.textContent = "";
-    placeDayContent(document.createDocumentFragment(), true, switchView);
+    placeDayContent(document.createDocumentFragment(), true);
     return;
   }
 
   dayCount.textContent = `${dayLessons.length} ${plural(dayLessons.length, "занятие", "занятия", "занятий")}`;
   const fragment = document.createDocumentFragment();
   dayLessons.forEach((lesson, index) => fragment.append(createLessonCard(lesson, index)));
-  placeDayContent(fragment, false, switchView);
+  placeDayContent(fragment, false);
 }
 
 function weekStartTime(lesson) {
@@ -2695,7 +2714,7 @@ function weekStartTime(lesson) {
   return `${hour}:${minute}`;
 }
 
-function renderWeek(instant) {
+function renderWeek() {
   const monday = mondayOf(state.selected || formatISO(new Date()));
   const saturday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 5);
   const lessons = filteredLessons();
@@ -2758,7 +2777,7 @@ function renderWeek(instant) {
     });
     board.append(cell);
   }
-  placeDayContent(board, false, instant);
+  placeDayContent(board, false);
 }
 
 function scrollToSchedule() {
