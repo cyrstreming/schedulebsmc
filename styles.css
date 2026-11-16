@@ -940,15 +940,18 @@ html.theme-dark .legend span:nth-child(3) { color: var(--c-split-ink); }
 
 .lesson.is-open .chevron { transform: rotate(180deg); }
 
-/* Высоту карточки задаёт скрипт одним переходом, без скачков сетки. */
+/* Раскрытие через долю строки сетки: высота растёт плавно, без чтения scrollHeight. */
 .lesson-panel {
-  height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
   overflow: hidden;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.lesson.is-open .lesson-panel { height: auto; }
+.lesson.is-open .lesson-panel { grid-template-rows: 1fr; }
 
 .lesson-panel-inner {
+  min-height: 0;
   overflow: hidden;
 }
 

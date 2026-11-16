@@ -2496,8 +2496,8 @@ function noteField(lesson, chips) {
 
 /**
  * Аккордеон: свёрнутая карточка — это кнопка, раскрытие не перезагружает список.
- * Высота анимируется через grid-template-rows в CSS, стрелка поворачивается
- * классом is-open. Повторный клик сворачивает ту же карточку.
+ * Высота растёт через grid-template-rows. Календарь при этом не подменяется снимком
+ * и не теряет размытие. Повторный клик сворачивает ту же карточку.
  * Внизу раскрытой карточки — номер этого занятия по предмету и сколько их ещё осталось.
  */
 function createLessonCard(lesson, index) {
@@ -2604,58 +2604,12 @@ function createLessonCard(lesson, index) {
   return article;
 }
 
-/** Раскрытие пары меняет только её высоту и не обрезает неон карточек. */
 function toggleLesson(article, panel, head) {
   const open = !article.classList.contains("is-open");
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.clearTimeout(dayBody._heightTimer);
-  if (dayBody._onHeight) {
-    dayBody.removeEventListener("transitionend", dayBody._onHeight);
-    dayBody._onHeight = null;
-  }
-  if (panel._onHeight) {
-    panel.removeEventListener("transitionend", panel._onHeight);
-    panel._onHeight = null;
-  }
-  if (reduce) {
-    article.classList.toggle("is-open", open);
-    panel.inert = !open;
-    head.setAttribute("aria-expanded", open ? "true" : "false");
-    panel.style.height = "";
-    panel.style.transition = "";
-    releaseDayHeight();
-    return;
-  }
-  const currentPanel = panel.getBoundingClientRect().height;
-  panel.style.transition = "none";
-  panel.style.height = "auto";
-  const full = panel.scrollHeight;
-  panel.style.height = `${currentPanel}px`;
   article.classList.toggle("is-open", open);
   panel.inert = !open;
   head.setAttribute("aria-expanded", open ? "true" : "false");
-  void panel.offsetHeight;
-  panel.style.transition = "height 0.36s cubic-bezier(0.22, 1, 0.36, 1)";
-  panel.style.height = open ? `${full}px` : "0px";
-  const done = (event) => {
-    if (event.propertyName !== "height") return;
-    panel.removeEventListener("transitionend", done);
-    panel._onHeight = null;
-    if (article.classList.contains("is-open")) {
-      panel.style.height = "";
-      panel.style.transition = "";
-    }
-    releaseDayHeight();
-  };
-  panel._onHeight = done;
-  panel.addEventListener("transitionend", done);
-  dayBody._heightTimer = window.setTimeout(() => {
-    if (article.classList.contains("is-open")) {
-      panel.style.height = "";
-      panel.style.transition = "";
-    }
-    releaseDayHeight();
-  }, 420);
+  if (dayBody.style.height) releaseDayHeight();
 }
 
 function releaseDayHeight() {
@@ -2674,13 +2628,13 @@ function releaseDayHeight() {
   dayBody.style.transition = "";
 }
 
-function placeDayContent(fragment, isEmpty) {
+function placeDayContent(fragment, isEmpty, instant) {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   releaseDayHeight();
   const previous = dayBody.getBoundingClientRect().height;
   emptyBox.hidden = !isEmpty;
   lessonsBox.replaceChildren(fragment);
-  if (reduce) return;
+  if (reduce || instant) return;
   const next = dayBody.getBoundingClientRect().height;
   if (previous < 2 || Math.abs(previous - next) < 2) return;
   dayBody.style.overflow = "hidden";
@@ -2698,6 +2652,8 @@ function placeDayContent(fragment, isEmpty) {
   dayBody._heightTimer = window.setTimeout(releaseDayHeight, 420);
 }
 
+let renderedWeek = false;
+
 function renderDetails() {
   document.title = state.teacher !== "all"
     ? `Расписание · ${state.teacher}`
@@ -2705,8 +2661,10 @@ function renderDetails() {
   syncWeekButton();
   syncDayTools();
   dayTools.hidden = state.weekView;
+  const switchView = renderedWeek !== state.weekView;
+  renderedWeek = state.weekView;
   if (state.weekView) {
-    renderWeek();
+    renderWeek(switchView);
     return;
   }
   const dayLessons = filteredLessons().filter((lesson) => lesson.date === state.selected);
@@ -2719,14 +2677,14 @@ function renderDetails() {
 
   if (!dayLessons.length) {
     dayCount.textContent = "";
-    placeDayContent(document.createDocumentFragment(), true);
+    placeDayContent(document.createDocumentFragment(), true, switchView);
     return;
   }
 
   dayCount.textContent = `${dayLessons.length} ${plural(dayLessons.length, "занятие", "занятия", "занятий")}`;
   const fragment = document.createDocumentFragment();
   dayLessons.forEach((lesson, index) => fragment.append(createLessonCard(lesson, index)));
-  placeDayContent(fragment, false);
+  placeDayContent(fragment, false, switchView);
 }
 
 function weekStartTime(lesson) {
@@ -2737,7 +2695,7 @@ function weekStartTime(lesson) {
   return `${hour}:${minute}`;
 }
 
-function renderWeek() {
+function renderWeek(instant) {
   const monday = mondayOf(state.selected || formatISO(new Date()));
   const saturday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 5);
   const lessons = filteredLessons();
@@ -2800,7 +2758,7 @@ function renderWeek() {
     });
     board.append(cell);
   }
-  placeDayContent(board, false);
+  placeDayContent(board, false, instant);
 }
 
 function scrollToSchedule() {
@@ -3476,7 +3434,7 @@ function bindEvents() {
   });
   weekButton.addEventListener("click", () => {
     state.weekView = !state.weekView;
-    render();
+    renderDetails();
   });
 
   prevMonth.addEventListener("click", () => shiftMonth(-1));
