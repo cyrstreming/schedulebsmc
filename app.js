@@ -2524,7 +2524,11 @@ function createLessonCard(lesson, index) {
     article.dataset.start = String(span[0]);
     article.dataset.end = String(span[1]);
   }
-  const past = lessonIsPast(lesson, formatISO(now), now.getHours() * 60 + now.getMinutes());
+  const today = formatISO(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const current = Boolean(span) && lesson.date === today && nowMinutes >= span[0] && nowMinutes < span[1];
+  if (current) article.classList.add("is-now");
+  const past = !current && lessonIsPast(lesson, today, nowMinutes);
   if (past) article.classList.add("is-past");
 
   const head = document.createElement("button");
