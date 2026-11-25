@@ -15,7 +15,7 @@
     index.html, styles.css, app.js, schedule_theory.json и schedule_practice.json
     должны лежать в одной папке. Открытие файла через file:// не загрузит JSON.
   -->
-  <link rel="stylesheet" href="styles.css?v=105">
+  <link rel="stylesheet" href="styles.css?v=110">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     /* Класс темы на html до отрисовки, чтобы фон не мигал. app.js дублирует класс на body. */
@@ -207,7 +207,7 @@
 
       <button type="button" class="btn btn-feedback" id="feedbackButton">Оставить отзыв / Ошибка</button>
       <p class="privacy">Приложение не собирает никакой информации о пользователях.</p>
-      <p class="app-version" id="appVersion">Версия: 1.103.105</p>
+      <p class="app-version" id="appVersion">Версия: 1.104.110</p>
     </div>
   </div>
 
@@ -223,6 +223,13 @@
         <p class="hint link-result" id="linkStatus"></p>
       </form>
       <button type="button" class="btn btn-quiet" id="linkSkip">Позже</button>
+    </div>
+  </div>
+
+  <div class="overlay move-overlay" id="moveNotice" role="dialog" aria-modal="true" aria-labelledby="moveNoticeTitle">
+    <div class="modal">
+      <h2 id="moveNoticeTitle">Приложение скоро переедет в нового бота</h2>
+      <button type="button" class="btn btn-primary" id="moveNoticeButton">Понятно</button>
     </div>
   </div>
 
@@ -624,7 +631,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=103"></script>
+  <script type="module" src="app.js?v=104"></script>
   <script>
     (function () {
       function fileVersion(url) {

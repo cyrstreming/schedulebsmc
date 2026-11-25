@@ -135,6 +135,8 @@ const feedbackText = document.querySelector("#feedbackText");
 const feedbackStatus = document.querySelector("#feedbackStatus");
 const notice = document.querySelector("#notice");
 const noticeButton = document.querySelector("#noticeButton");
+const moveNotice = document.querySelector("#moveNotice");
+const moveNoticeButton = document.querySelector("#moveNoticeButton");
 const groupPicker = document.querySelector("#groupPicker");
 const groupSearch = document.querySelector("#groupSearch");
 const groupList = document.querySelector("#groupList");
@@ -2967,7 +2969,7 @@ function closeOnBackdrop(overlay, close) {
 }
 
 function syncModal() {
-  const open = !notice.hidden || !groupPicker.hidden || !pickMenu.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
+  const open = !moveNotice.hidden || !notice.hidden || !groupPicker.hidden || !pickMenu.hidden || !linkDialog.hidden || !settings.hidden || !installDialog.hidden || !feedbackDialog.hidden || !addDialog.hidden || !editDialog.hidden || !deleteDialog.hidden || !conflictDialog.hidden || !deletedDialog.hidden || !purgeDialog.hidden || !resetDayDialog.hidden;
   document.body.classList.toggle("modal-open", open);
   document.body.style.top = "";
   document.body.style.position = "";
@@ -3040,6 +3042,20 @@ function closeNotice() {
   hideOverlay(notice, () => {
     if (!openPicker) return;
     showOverlay(groupPicker);
+  });
+}
+
+function closeMoveNotice() {
+  hideOverlay(moveNotice, () => {
+    if (linkGate) {
+      showOverlay(linkDialog);
+      return;
+    }
+    if (state.warnOnOpen) {
+      showOverlay(notice);
+      return;
+    }
+    if (awaitingGroup) showOverlay(groupPicker);
   });
 }
 
@@ -3714,6 +3730,7 @@ function bindEvents() {
     if (addNumber.value !== "skip" && addTimeTable()[addNumber.value]) addTime.value = addNumber.value;
     syncAddTimeFields();
   });
+  closeOnBackdrop(moveNotice, closeMoveNotice);
   closeOnBackdrop(notice, closeNotice);
   closeOnBackdrop(settings, closeSettings);
   closeOnBackdrop(pickMenu, closePickMenu);
@@ -3816,19 +3833,11 @@ async function init() {
   }
 
   noticeButton.addEventListener("click", closeNotice);
+  moveNoticeButton.addEventListener("click", closeMoveNotice);
   linkGate = needsLinkCode();
-  if (linkGate) {
-    notice.hidden = true;
-    document.documentElement.classList.remove("no-entry-warn");
-    showOverlay(linkDialog);
-  } else if (!state.warnOnOpen) {
-    notice.hidden = true;
-    document.documentElement.classList.remove("no-entry-warn");
-    syncModal();
-  } else {
-    showOverlay(notice);
-    noticeButton.focus({ preventScroll: true });
-  }
+  notice.hidden = true;
+  if (linkGate || !state.warnOnOpen) document.documentElement.classList.remove("no-entry-warn");
+  showOverlay(moveNotice);
   bindEvents();
   window.addEventListener("pagehide", () => {
     flushNotes();
@@ -3897,7 +3906,7 @@ async function init() {
         return;
       }
       awaitingGroup = true;
-      if (notice.hidden) {
+      if (notice.hidden && moveNotice.hidden) {
         showOverlay(groupPicker);
       }
     };

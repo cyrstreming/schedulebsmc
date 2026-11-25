@@ -2065,3 +2065,31 @@ html.theme-light.look-simple .week-cell.is-selected {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+
+#moveNotice { z-index: 50; }
+
+#moveNotice .modal {
+  border: 2px solid #ffe14a;
+  background: #3a2e10;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+#moveNotice h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+  color: #ffe14a;
+}
+
+#moveNotice .btn-primary {
+  background: #ffe14a;
+  color: #2a2108;
+}
+
+html.theme-light #moveNotice .modal {
+  border-color: #c48a00;
+  background: #fff6cc;
+  box-shadow: 0 18px 44px rgba(90, 60, 0, 0.16);
+}
+
+html.theme-light #moveNotice h2 { color: #7a4e00; }
